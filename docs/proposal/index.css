@@ -1,0 +1,26 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100svh;
+  padding: 5rem;
+  font-family: Helvetica, sans-serif;
+}
+
+main {
+  text-align: center;
+  min-height: 90svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+article {
+  margin-top: 2rem;
+  width: clamp(18.75rem, 60%, 62.5rem);
+}
