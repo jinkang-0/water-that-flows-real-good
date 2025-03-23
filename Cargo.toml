@@ -1,0 +1,10 @@
+[package]
+name = "sand-that-falls-real-good"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+linalg = { path = "linalg" }
+
+gl = "0.14.0"
+glfw = "0.59.0"
