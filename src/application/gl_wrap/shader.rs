@@ -47,6 +47,9 @@ impl Shader {
     pub fn from_str(src: &str, ty: GLenum) -> Self {
         Self::try_from_str(src, ty).expect("OpenGL shader compilation error(s)")
     }
+    pub fn handle(&self) -> GLuint {
+        self.handle
+    }
 }
 impl Drop for Shader {
     fn drop(&mut self) {
@@ -99,6 +102,9 @@ impl Program {
     }
     pub fn bind(&self) {
         unsafe { gl::UseProgram(self.handle) };
+    }
+    pub fn handle(&self) -> GLuint {
+        self.handle
     }
 }
 impl Drop for Program {
