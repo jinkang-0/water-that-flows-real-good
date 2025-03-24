@@ -1,6 +1,7 @@
 
 use super::utils::ScopedClosure;
-use gl::types::{GLuint, GLenum};
+use gl::types::{GLint, GLuint, GLenum};
+use linalg::Matrix;
 
 /// (semi-safe) Wraper for OpenGL shader objects
 pub struct Shader {
@@ -106,10 +107,25 @@ impl Program {
     pub fn handle(&self) -> GLuint {
         self.handle
     }
+    pub fn get_uniform_location(&self, name: &std::ffi::CStr) -> GLint {
+        unsafe { gl::GetUniformLocation(self.handle, name.as_ptr()) }
+    }
 }
 impl Drop for Program {
     fn drop(&mut self) {
         unsafe { gl::DeleteProgram(self.handle) };
+    }
+}
+
+pub struct UniformLocationMat4 {
+    location: GLint
+}
+impl UniformLocationMat4 {
+    pub fn new(location: GLint) -> Self {
+        Self { location }
+    }
+    pub fn upload(&self, matrix: &Matrix<f32, 4, 4>) {
+        unsafe { gl::UniformMatrix4fv(self.location, 1, gl::FALSE, &raw const matrix.data[0][0]) };
     }
 }
 

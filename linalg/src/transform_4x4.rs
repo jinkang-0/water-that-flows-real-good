@@ -49,8 +49,8 @@ pub fn perspective<T: num_traits::real::Real + Copy>(vertical_fov: T, aspect: T,
     let tan_fov_inv = T::one() / (vertical_fov / (T::one() + T::one())).tan();
     Matrix::from([
         [tan_fov_inv / aspect, T::zero()     ,  T::zero()   , T::zero()             ],
-        [T::zero()           , T::zero()     , -tan_fov_inv , T::zero()             ],
-        [T::zero()           , far/(far-near),  T::zero()   , -(far*near)/(far-near)],
+        [T::zero()           , T::zero()     , tan_fov_inv , T::zero()             ],
+        [T::zero()           , far/(far-near),  T::zero()   , (far*near)/(near-far)],
         [T::zero()           , T::one()      ,  T::zero()   , T::zero()             ]
     ]).as_transpose()
 }
