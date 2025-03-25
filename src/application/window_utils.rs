@@ -86,10 +86,10 @@ impl Default for CameraControl {
         Self {
             sensitivity_pitch: 0.0015,
             sensitivity_yaw: 0.0015,
-            normal_speed_xy: 1.0,
-            normal_speed_z: 1.0,
-            sprint_speed_xy: 2.0,
-            sprint_speed_z: 2.0,
+            normal_speed_xy: 3.0,
+            normal_speed_z: 3.0,
+            sprint_speed_xy: 8.0,
+            sprint_speed_z: 8.0,
         }
     }
 }

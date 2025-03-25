@@ -47,6 +47,7 @@ impl<T2, const N: usize, const M: usize> Matrix<T2, N, M> {
         }).into()
     }
 }
+// f64 -> f32
 impl<const N: usize, const M: usize> From<&Matrix<f64, N, M>> for Matrix<f32, N, M> {
     fn from(src: &Matrix<f64, N, M>) -> Self {
         std::array::from_fn::<[f32; M], N, _>(|j| { // `j`th column of source
@@ -56,6 +57,12 @@ impl<const N: usize, const M: usize> From<&Matrix<f64, N, M>> for Matrix<f32, N,
         }).into()
     }
 }
+impl<const N: usize, const M: usize> From<Matrix<f64, N, M>> for Matrix<f32, N, M> {
+    fn from(src: Matrix<f64, N, M>) -> Self {
+        Self::from(&src)
+    }
+}
+// f32 -> f64
 impl<const N: usize, const M: usize> From<&Matrix<f32, N, M>> for Matrix<f64, N, M> {
     fn from(src: &Matrix<f32, N, M>) -> Self {
         std::array::from_fn::<[f64; M], N, _>(|j| { // `j`th column of source
@@ -65,13 +72,38 @@ impl<const N: usize, const M: usize> From<&Matrix<f32, N, M>> for Matrix<f64, N,
         }).into()
     }
 }
-impl<const N: usize, const M: usize> From<Matrix<f64, N, M>> for Matrix<f32, N, M> {
-    fn from(src: Matrix<f64, N, M>) -> Self {
+impl<const N: usize, const M: usize> From<Matrix<f32, N, M>> for Matrix<f64, N, M> {
+    fn from(src: Matrix<f32, N, M>) -> Self {
         Self::from(&src)
     }
 }
-impl<const N: usize, const M: usize> From<Matrix<f32, N, M>> for Matrix<f64, N, M> {
-    fn from(src: Matrix<f32, N, M>) -> Self {
+// usize -> f32
+impl<const N: usize, const M: usize> From<&Matrix<usize, N, M>> for Matrix<f32, N, M> {
+    fn from(src: &Matrix<usize, N, M>) -> Self {
+        std::array::from_fn::<[f32; M], N, _>(|j| { // `j`th column of source
+            std::array::from_fn::<f32, M, _>(|i| { // `i`th row of source
+                src.data[j][i] as f32
+            })
+        }).into()
+    }
+}
+impl<const N: usize, const M: usize> From<Matrix<usize, N, M>> for Matrix<f32, N, M> {
+    fn from(src: Matrix<usize, N, M>) -> Self {
+        Self::from(&src)
+    }
+}
+// isize -> f32
+impl<const N: usize, const M: usize> From<&Matrix<isize, N, M>> for Matrix<f32, N, M> {
+    fn from(src: &Matrix<isize, N, M>) -> Self {
+        std::array::from_fn::<[f32; M], N, _>(|j| { // `j`th column of source
+            std::array::from_fn::<f32, M, _>(|i| { // `i`th row of source
+                src.data[j][i] as f32
+            })
+        }).into()
+    }
+}
+impl<const N: usize, const M: usize> From<Matrix<isize, N, M>> for Matrix<f32, N, M> {
+    fn from(src: Matrix<isize, N, M>) -> Self {
         Self::from(&src)
     }
 }

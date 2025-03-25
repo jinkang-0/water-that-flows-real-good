@@ -3,16 +3,18 @@ mod gl_wrap;
 mod camera;
 mod window_utils;
 
+mod meshed_voxel_draw;
+
 use glfw::{ Context, PWindow, Glfw, GlfwReceiver, WindowEvent, Key, Action };
 
-use gl_wrap::shader;
+use self::gl_wrap::gl_check_errors;
 use camera::Camera;
+use crate::application::meshed_voxel_draw::{Voxel, VoxelType};
 
 
 pub struct Application {
-    camera_uniform_location: shader::UniformLocationMat4,
-    test_shader_program: shader::Program,
-    test_vao: gl_wrap::VAO,
+    chunk_draws: Vec<meshed_voxel_draw::VoxelChunkDraw>,
+    voxel_draw: meshed_voxel_draw::VoxelDraw,
 
 
     camera_controller: window_utils::CameraControl,
@@ -51,20 +53,31 @@ impl Application {
         let gl_version_cstr = unsafe { std::ffi::CStr::from_ptr(gl::GetString(gl::VERSION) as *const i8) };
         println!("Using OpenGL version: {:?}", gl_version_cstr);
 
+        // OpenGL settings
+        unsafe { gl::Enable(gl::DEPTH_TEST) };
+        unsafe { gl::ClearColor(0.02, 0.02, 0.02, 1.0) };
+        unsafe { gl::ClearDepth(1.0) };
+
+
         // other init
-        let fragment_src = include_str!("../shaders/test.frag");
-        let vertex_src = include_str!("../shaders/test.vert");
+        // Create a voxel chunk of size 128x128x128
+        let size: isize = 128;
+        let mut chunk = meshed_voxel_draw::VoxelChunk::new([size, size, size].into());
+        // fill it such that it forms a sphere
+        for (p, v) in chunk.iter_voxels_mut() {
+            if linalg::dot(&(p + -size/2), &(p + -size/2)) < (size/2)*(size/2) {
+                *v = Voxel::new(VoxelType::Sand);
+            }
+        }
 
-        let fragment = shader::Shader::from_str(fragment_src, gl::FRAGMENT_SHADER);
-        let vertex = shader::Shader::from_str(vertex_src, gl::VERTEX_SHADER);
-
-        let program = shader::Program::from_shaders([&fragment, &vertex].into_iter());
-
-        let camera_uniform_location = shader::UniformLocationMat4::new(program.get_uniform_location(c"view_proj"));
-
-        // The vertex array object is not really used for anything yet
-        // It is here because drawing without creating one is deprecated (the default VAO is depricated)
-        let vao = gl_wrap::VAO::new();
+        // create voxel drawer
+        let voxel_draw = meshed_voxel_draw::VoxelDraw::new();
+        // create the draw for the sphere
+        let mut chunk_draws = vec![
+            meshed_voxel_draw::VoxelChunkDraw::new(),
+        ];
+        // generate the mesh for the drawer
+        chunk_draws[0].generate(chunk, 0.1);
 
 
         // done initializing, set time to zero
@@ -76,12 +89,11 @@ impl Application {
             frame_timer: window_utils::FrameTimer::new(),
             cursor_motion: window_utils::CursorMotionTracker::new(),
 
-            camera: Camera::new(std::f64::consts::PI/3.0, 0.01, 100.0),
+            camera: Camera::new(std::f64::consts::PI/3.0, 0.05, 204.8),
             camera_controller: window_utils::CameraControl::default(),
 
-            test_vao: vao,
-            test_shader_program: program,
-            camera_uniform_location,
+            voxel_draw,
+            chunk_draws,
         }
     }
     pub fn run(&mut self) {
@@ -100,8 +112,7 @@ impl Application {
             unsafe { gl::Viewport(0, 0, window_size.0, window_size.1) };
             self.camera.aspect = (window_size.0 as f64) / (window_size.1 as f64);
 
-            unsafe { gl::ClearColor(0.02, 0.02, 0.02, 1.0) };
-            unsafe { gl::Clear(gl::COLOR_BUFFER_BIT) };
+            unsafe { gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT) };
 
             // draw
             self.draw();
@@ -147,32 +158,29 @@ impl Application {
             }
         }
     }
-    fn update(&mut self, t: f64, dt: f64) {
+    fn update(&mut self, _t: f64, dt: f64) {
         // get the total motion of the mouse over the frame
         let cursor_movement = self.cursor_motion.get_motion();
 
         // first person camera control
         self.camera_controller.handle_camera_control_input(&self.main_window, &mut self.camera, dt, cursor_movement);
-
-        // print some frame timing info
-        println!("Time: {}, Delta Time: {}, Framerate: {}", t, dt, 1.0 / dt);
     }
     fn draw(&mut self) {
-        // bind the (empty) vertex array object
-        self.test_vao.bind();
-        // use the shader
-        self.test_shader_program.bind();
+        // check for any errors from OpenGL
+        gl_check_errors(line!(), file!());
 
         // calculate view and projection
         let view = self.camera.view();
         let proj = self.camera.proj();
         let view_proj = proj * view;
 
-        // upload the view times the projection
-        self.camera_uniform_location.upload(&view_proj);
 
-        // draw
-        unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 3) };
+        // set state common across all voxel draw calls
+        self.voxel_draw.start_draws(&view_proj);
+        // draw each voxel chunk
+        for chunk_draw in &self.chunk_draws {
+            chunk_draw.draw();
+        }
     }
 }
 
