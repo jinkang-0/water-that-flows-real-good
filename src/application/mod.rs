@@ -63,12 +63,14 @@ impl Application {
         // Create a voxel chunk of size 128x128x128
         let size: isize = 128;
         let mut chunk = meshed_voxel_draw::VoxelChunk::new([size, size, size].into());
+        let t0 = glfw.get_time();
         // fill it such that it forms a sphere
         for (p, v) in chunk.iter_voxels_mut() {
             if linalg::dot(&(p + -size/2), &(p + -size/2)) < (size/2)*(size/2) {
                 *v = Voxel::new(VoxelType::Sand);
             }
         }
+        let t1 = glfw.get_time();
 
         // create voxel drawer
         let voxel_draw = meshed_voxel_draw::VoxelDraw::new();
@@ -78,6 +80,9 @@ impl Application {
         ];
         // generate the mesh for the drawer
         chunk_draws[0].generate(chunk, 0.1);
+        let t2 = glfw.get_time();
+        println!("Chunk Generation Time: {}", t1 - t0);
+        println!("Mesh Generation Time: {}", t2 - t1);
 
 
         // done initializing, set time to zero
