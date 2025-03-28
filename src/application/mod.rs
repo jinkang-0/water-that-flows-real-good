@@ -36,6 +36,7 @@ impl Application {
         // create GLFW window
         glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+        glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         let (mut main_window, event_reciever) = glfw.create_window(width, height, "Sand Simulation", glfw::WindowMode::Windowed)
             .expect("Failed to create GLFW window.");
         main_window.set_key_polling(true);
