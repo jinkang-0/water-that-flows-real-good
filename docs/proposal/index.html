@@ -24,55 +24,97 @@
     <main>
       <article>
         <header>
-          <h1>Voxel Falling Sand with Ray Marching Smoothing</h1>
+          <h1>Voxel Falling Sand</h1>
           <p class="gray">
-            Team: Ann Basil, David Hernandez, Ben Bliss, Jinkang Fang
+            Team: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
           </p>
           <div class="summary">
-            A 3D falling sand game with kinematics and chemical reactions.
-            <br />
-            Implemented with voxel grids and ray marching smoothing.
+            <b>Summary</b><br />
+            A real-time, high definition voxel falling sand game with several
+            different materials. Simulates interactions between different
+            material properties and offers an interesting sandbox playground.
           </div>
         </header>
         <section>
           <h2>Problem Description</h2>
           <p>
-            Falling sand games are a great tool to demonstrate how elements like
-            sand and water interact with each other. However, traditional
-            falling sand games are made in 2D, making them more of a fun game to
-            think about but that's it. We want to expand on the concept of
-            falling sand games into 3D.
+            We were inspired by falling sand games like sandboxels that
+            simulated chemical reactions using pixels and cellular automation.
           </p>
           <p>
-            To improve realism, each voxel should be small, just like
-            traditional falling sand games. We also aim to use ray marching with
-            a controllable delimiter to trace a boundary around the corners of
-            each voxel. The idea is to create a more dynamic experience with
-            smoothing, but in a controlled manner, such that it doesn't appear
-            as liquid.
+            We want to build on traditional falling sand games and improve its
+            realism by extending it into 3D. We also aim to optimize the
+            simulation as much as possible, allowing potentially thousands of
+            small voxel particles to interact with each other in real time.
+          </p>
+          <p>
+            To go a step further, we plan to implement shaders that reflect
+            differently for different materials. For example, coarse and bumpy
+            material for sand, but reflective and translucent material for
+            water.
+          </p>
+          <p>
+            We believe this problem is important because it simulates falling
+            particles like sand, gravel, etc. in a voxel environment. This can
+            be a great improvement in realism for voxel-based sandbox games if
+            optimizations are done correctly.
+          </p>
+          <p>
+            However, it is also a difficult problem to consider because voxel
+            simulations involve updating a large cubic grid. We have to consider
+            different acceleration schemes to be able to simulate high
+            definition voxel falling sand simulations.
+          </p>
+          <p>
+            One approach that we considered is to consider the voxel grid as a
+            one dimensional vector, thus the position of any voxel can be
+            interpreted as an integer index into this vector. We can then
+            iterate only on a queue of vectors that will move, eliminating the
+            need to iterate over the entire grid.
+          </p>
+          <p>
+            We are also considering the use of compute shaders to help us
+            parallelize the simulation on the GPU, which will further reduce the
+            simulation time.
+          </p>
+          <p>
+            For rendering, we plan to use ray marching to render only the
+            visible parts of each voxel. We also have plans to adjust the
+            reflectance and refraction of light in the ray marching rendering to
+            give a more visibly convincing representation of different material.
           </p>
         </section>
         <section>
           <h2>Goals and Deliverables</h2>
           <p>
-            Lorem ipsum dolor, sit amet consectetur adipisicing elit. Veritatis
-            minus eligendi nobis corrupti debitis, blanditiis recusandae fuga
-            perspiciatis, repellat omnis ducimus assumenda laborum iusto
-            doloremque nam dolor dolore vero modi? Eius vitae illo doloribus,
-            aliquam ratione itaque veniam voluptatum sequi molestiae non
-            corrupti assumenda ducimus cumque minima fuga. Ut, unde.
+            For our final deliverable, we want to create a working real-time
+            demo of falling sand particles in a voxel environment. The user will
+            be able to maneuver the camera around in the world and interact with
+            it by spawning or deleting chunks of voxels.
+          </p>
+          <p>
+            To measure the quality of our demo, we will track the simulation
+            time, mesh generation time, and the average FPS of the demo, as we
+            implement each successive optimization. Of course, keeping the
+            number of particles constant. Ideally, we want the simulation and
+            render times to be low, which would also increase the average FPS.
+          </p>
+          <p>
+            Considering we only have a limited amount of time to work on this,
+            we want to prioritize having a working demo first. Then work on
+            optimizations for a higher number of voxels, followed by the falling
+            sand simulation. After that, we can work on different material
+            properties.
+          </p>
+          <p>
+            The above should all be achievable within the given timeframe. If we
+            are able to deliver ahead of schedule, we will tackle the use of ray
+            marching for distinct material shading, particle kinematics (i.e.
+            varying velocity), and edge smoothing.
           </p>
         </section>
         <section>
           <h2>Schedule</h2>
-          <p>
-            Lorem ipsum dolor sit amet consectetur, adipisicing elit.
-            Consequatur nihil tempore adipisci, corrupti ex obcaecati deserunt
-            omnis sint voluptates odit? Eius ipsum nihil aspernatur ipsam
-            voluptatem sunt quos reiciendis asperiores hic tempore culpa
-            voluptas magnam iusto cum, corporis modi magni. Minima nesciunt
-            pariatur exercitationem quaerat, nemo iusto quos animi ipsum.
-          </p>
           <table>
             <thead>
               <tr>
@@ -86,68 +128,42 @@
                   <b>Week 0</b>
                   <p>(Spring Break)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Project brainstorm</li>
-                    <li>Prepare proposal</li>
-                  </ul>
-                </td>
+                <td>Project brainstorm and repo setup</td>
               </tr>
               <tr>
                 <td>
                   <b>Week 1</b>
                   <p>(Mar. 31 - Apr. 4)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Proposal website</li>
-                    <li>Project setup</li>
-                  </ul>
-                </td>
+                <td>Proposal website, research, project setup</td>
               </tr>
               <tr>
                 <td>
                   <b>Week 2</b>
                   <p>(Apr. 7 - Apr. 11)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
-                </td>
+                <td>Optimizing simulation, voxel spawning, UI</td>
               </tr>
               <tr>
                 <td>
                   <b>Week 3</b>
                   <p>(Apr. 14 - Apr. 18)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
-                </td>
+                <td>Optimizing rendering, voxel deleting, UI</td>
               </tr>
               <tr>
                 <td>
                   <b>Week 4</b>
                   <p>(Apr. 14 - Apr. 18)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
-                </td>
+                <td>Falling sand automaton logic, material properties</td>
               </tr>
               <tr>
                 <td>
                   <b>Week 5</b>
                   <p>(Apr. 21 - Apr. 25)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
-                </td>
+                <td>Material properties, optimization with compute shaders</td>
               </tr>
               <tr>
                 <td>
@@ -155,9 +171,7 @@
                   <p>(Apr. 28 - May 2)</p>
                 </td>
                 <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
+                  Ray marching for smooth voxels and material shading; skybox
                 </td>
               </tr>
               <tr>
@@ -165,33 +179,49 @@
                   <b>Final Days</b>
                   <p>(May 2 - May 5)</p>
                 </td>
-                <td>
-                  <ul>
-                    <li>Do stuff</li>
-                  </ul>
-                </td>
+                <td>Debugging, tie up loose ends</td>
               </tr>
             </tbody>
           </table>
         </section>
         <section>
           <h2>Resources</h2>
+          <p>
+            For our project, we will be using Rust and OpenGL. We aim to support
+            Linux, MacOS, and Windows, because our team collective cover all
+            three operating systems.
+          </p>
+          <b>Inspiration resources</b>
           <ul>
             <li>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Ea,
-              dolor.
+              <a href="https://sandboxels.r74n.com/" target="_blank"
+                >Sandboxels</a
+              >
+              - initial falling sand inspiration
             </li>
             <li>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Ea,
-              dolor.
+              <a
+                href="https://github.com/ria8651/bevy-voxel-engine"
+                target="_blank"
+                >Bevy Voxel Engine</a
+              >
+              - made us believe it is achievable
+            </li>
+          </ul>
+          <br />
+          <b>Helpful resources</b>
+          <ul>
+            <li>
+              <a href="https://www.glfw.org/download" target="_blank">GLFW</a> -
+              tooling to create window GUI for OpenGL projects
             </li>
             <li>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Ea,
-              dolor.
-            </li>
-            <li>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Ea,
-              dolor.
+              <a
+                href="https://youtu.be/40JzyaOYJeY?si=YzUzOVI1blxK5WkF"
+                target="_blank"
+                >Voxel optimizations</a
+              >
+              - provided insight into voxel game optimizations
             </li>
           </ul>
         </section>

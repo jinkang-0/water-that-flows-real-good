@@ -40,7 +40,7 @@ body {
 }
 
 main {
-  width: clamp(300px, 60%, 2000px);
+  width: clamp(650px, 50%, 2000px);
   min-height: 90svh;
   background: var(--bg2);
 
