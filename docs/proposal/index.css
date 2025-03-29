@@ -10,10 +10,6 @@
   --fg10: #c7c7c7;
   --fg6: #656565;
 
-  /* scrollbar */
-  --scroll-track: #1b1b1b;
-  --scroll-thumb: #919191;
-
   /* specify color scheme to browser */
   /* customizes scrollbar to fit with theme */
   color-scheme: dark;
