@@ -31,15 +31,16 @@
           <div class="summary">
             <b>Summary</b><br />
             A real-time, high definition voxel falling sand game with several
-            different materials (such as sand, water, etc). Simulates interactions between different
-            material properties and offers an interesting sandbox playground.
+            different materials (such as sand, water, etc). Simulates
+            interactions between different material properties and offers an
+            interesting sandbox playground.
           </div>
         </header>
         <section>
           <h2>Problem Description</h2>
           <p>
             We were inspired by falling sand games like sandboxels that
-            simulated chemical reactions using pixels and cellular automation. 
+            simulated chemical reactions using pixels and cellular automation.
             However, games like sandboxels are largely 2D.
           </p>
           <p>
@@ -50,28 +51,32 @@
           </p>
           <p>
             To go a step further, we plan to implement shaders that reflect
-            differently for different materials (i.e. coarse and bumpy
-            material for sand, but reflective and translucent material for
-            water).
+            differently for different materials (i.e. coarse and bumpy material
+            for sand, but reflective and translucent material for water).
           </p>
           <p>
-            We believe this problem is important because it simulates falling
-            particles like sand and gravel in a 3D environment. This can be a
-            great improvement in realism for voxel-based sandbox games if
-            optimizations are done correctly.
+            We believe this problem is important because it can be a great
+            improvement in realism for voxel-based sandbox games if
+            optimizations are done correctly. It can also be a great educational
+            tool to demonstrate the interaction of elements like sand and water
+            in a 3D environment.
           </p>
           <p>
-            However, it is a difficult problem to consider because voxel
-            simulations involve updating a large cubic grid. We have to consider
-            different acceleration schemes to be able to simulate high
-            definition voxel falling sand simulations.
+            The difficulty of this problem lies in the challenge of
+            optimization. Because voxel simulations involve updating a large
+            cubic grid, the cost of computation scale in cubic orders for each
+            frame, resulting in heavy computation costs. We have to consider the
+            application of acceleration schemes in order to simulate high
+            definition voxel falling sand simulations operating at smooth
+            framerates (at least 30fps).
           </p>
           <p>
-            One approach we are considering is to consider the voxel grid as a
-            one dimensional vector, thus the position of any voxel can be
-            interpreted as an integer index into this vector. We can then
-            iterate only on a queue of vectors that will move, eliminating the
-            need to iterate over the entire grid.
+            One approach we are considering is to iterate only on the indices
+            representing voxels that will move, eliminating the need to iterate
+            over the entire grid. Another consideration is to split the world
+            into uniform chunks, then iterating on the chunks that will move
+            instead of each voxel. We will try both approaches and see which one
+            performs better.
           </p>
           <p>
             We are also considering the use of compute shaders to help us
@@ -88,9 +93,10 @@
         <section>
           <h2>Goals and Deliverables</h2>
           <p>
-            For our final deliverable, we want to create and deliver a performant, real-time
-            demo of sand-like particles in a voxel environment, complete with
-            kinematics, material reactions, and user interactions.
+            For our final deliverable, we want to create and deliver a
+            performant, real-time demo of sand-like particles in a voxel
+            environment, complete with kinematics, material reactions, and user
+            interactions.
           </p>
           <p>
             To measure the quality of our demo, we will track the simulation
@@ -100,10 +106,10 @@
             average FPS.
           </p>
           <p>
-            We plan to answer if it's possible to have implement a falling sand 
-            simulator without massive time or space implications, which likely 
-            will show up in the quality of our demo in terms of simulation and 
-            render times, along with FPS. 
+            We plan to answer if it's possible to have implement a falling sand
+            simulator without massive time or space implications, which likely
+            will show up in the quality of our demo in terms of simulation and
+            render times, along with FPS.
           </p>
           <p>
             Considering we only have a limited amount of time to work on this,
@@ -225,9 +231,33 @@
               <a
                 href="https://youtu.be/40JzyaOYJeY?si=YzUzOVI1blxK5WkF"
                 target="_blank"
-                >Voxel optimizations</a
+                >YouTube: I Optimised My Game Engine Up To 12000 FPS</a
               >
               - provided insight into voxel game optimizations
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/VLZjd_Y1gJ8?si=NzNRIWX35CkvKLqx"
+                target="_blank"
+                >YouTube: Recreating Noita's Sand Simulation in C and OpenGL</a
+              >
+              - useful ideas that can be extended to 3D
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/8Tf18MMZ-5U?si=wRniZopVbA6TA2_F"
+                target="_blank"
+                >YouTube: I Made Falling Sand Games in a Fragment Shader</a
+              >
+              - useful reference for optimizing using the GPU
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/vNcsPE_YdmA?si=Ma7Iggn5Si0KCl9f"
+                target="_blank"
+                >YouTube: Making an infinite world with Falling Sand part 2</a
+              >
+              - inspiration to optimize by splitting the world in chunks
             </li>
           </ul>
         </section>
