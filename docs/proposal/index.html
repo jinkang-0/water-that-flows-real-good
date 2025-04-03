@@ -31,7 +31,7 @@
           <div class="summary">
             <b>Summary</b><br />
             A real-time, high definition voxel falling sand game with several
-            different materials. Simulates interactions between different
+            different materials (such as sand, water, etc). Simulates interactions between different
             material properties and offers an interesting sandbox playground.
           </div>
         </header>
@@ -39,7 +39,8 @@
           <h2>Problem Description</h2>
           <p>
             We were inspired by falling sand games like sandboxels that
-            simulated chemical reactions using pixels and cellular automation.
+            simulated chemical reactions using pixels and cellular automation. 
+            However, games like sandboxels are largely 2D.
           </p>
           <p>
             We want to build on traditional falling sand games and improve its
@@ -49,9 +50,9 @@
           </p>
           <p>
             To go a step further, we plan to implement shaders that reflect
-            differently for different materials. For example, coarse and bumpy
+            differently for different materials (i.e. coarse and bumpy
             material for sand, but reflective and translucent material for
-            water.
+            water).
           </p>
           <p>
             We believe this problem is important because it simulates falling
@@ -60,13 +61,13 @@
             optimizations are done correctly.
           </p>
           <p>
-            However, it is also a difficult problem to consider because voxel
+            However, it is a difficult problem to consider because voxel
             simulations involve updating a large cubic grid. We have to consider
             different acceleration schemes to be able to simulate high
             definition voxel falling sand simulations.
           </p>
           <p>
-            One approach that we considered is to consider the voxel grid as a
+            One approach we are considering is to consider the voxel grid as a
             one dimensional vector, thus the position of any voxel can be
             interpreted as an integer index into this vector. We can then
             iterate only on a queue of vectors that will move, eliminating the
@@ -87,7 +88,7 @@
         <section>
           <h2>Goals and Deliverables</h2>
           <p>
-            For our final deliverable, we want to create a performant, real-time
+            For our final deliverable, we want to create and deliver a performant, real-time
             demo of sand-like particles in a voxel environment, complete with
             kinematics, material reactions, and user interactions.
           </p>
@@ -97,6 +98,12 @@
             implement each successive optimization. Ideally, we want the
             simulation and render times to be low, which would also increase the
             average FPS.
+          </p>
+          <p>
+            We plan to answer if it's possible to have implement a falling sand 
+            simulator without massive time or space implications, which likely 
+            will show up in the quality of our demo in terms of simulation and 
+            render times, along with FPS. 
           </p>
           <p>
             Considering we only have a limited amount of time to work on this,
