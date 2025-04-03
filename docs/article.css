@@ -44,6 +44,10 @@ ul {
   list-style-position: inside;
 }
 
+li {
+  margin: 0.25rem 0;
+}
+
 /* tables */
 
 table {
