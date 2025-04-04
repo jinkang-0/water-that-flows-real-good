@@ -17,6 +17,12 @@ h2 {
   margin-bottom: 1rem;
 }
 
+h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--fg10);
+}
+
 p {
   margin: 1rem 0;
 }
@@ -62,6 +68,10 @@ thead td {
 td {
   border: 1px solid var(--fg6);
   padding: 8px;
+}
+
+td:first-child {
+  width: 9.375rem;
 }
 
 td > b {
