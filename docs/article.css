@@ -71,7 +71,12 @@ td {
 }
 
 td:first-child {
-  width: 9.375rem;
+  width: max-content;
+}
+
+td:first-child b,
+td:first-child p {
+  width: max-content;
 }
 
 td > b {
