@@ -157,7 +157,7 @@ MonoBehaviour:
   fixedTimeStep: 1
   iterationsPerFrame: 3
   gravity: -0.098
-  boundsSize: {x: 22, y: 9}
+  boundsSize: {x: 22.65, y: 9.9}
   collisionDamping: 0.339
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
   spawner: {fileID: 479015541}
