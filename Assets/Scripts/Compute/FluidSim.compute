@@ -1,0 +1,64 @@
+#pragma kernel ExternalForces
+#pragma kernel UpdatePositions
+
+static const int NumThreads = 64;
+
+// buffers
+RWStructuredBuffer<float2> positions;
+RWStructuredBuffer<float2> velocities;
+
+// settings
+const uint numParticles;
+const float gravity;
+const float deltaTime;
+const float collisionDamping;
+const float2 boundsSize;
+
+float2 HandleExternalForces(float2 pos, float2 velocity)
+{
+    float2 gravityAcceleration = float2(0, gravity);
+    return gravityAcceleration;
+}
+
+void HandleCollisions(uint particleIdx)
+{
+    float2 pos = positions[particleIdx];
+    float2 vel = velocities[particleIdx];
+
+    // keep particle within bounds
+    const float2 halfSize = boundsSize / 2;
+    float2 edgeDist = halfSize - abs(pos);
+
+    if (edgeDist.x <= 0)
+    {
+        pos.x = halfSize.x * sign(pos.x);
+        vel.x *= -1 * (1 - collisionDamping);
+    }
+
+    if (edgeDist.y <= 0)
+    {
+        pos.y = halfSize.y * sign(pos.y);
+        vel.y *= -1 * (1 - collisionDamping);
+    }
+
+    // update position and velocity
+    positions[particleIdx] = pos;
+    velocities[particleIdx] = vel;
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ExternalForces(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numParticles) return;
+
+    velocities[id.x] += HandleExternalForces(positions[id.x], velocities[id.x] * deltaTime);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void UpdatePositions(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numParticles) return;
+
+    positions[id.x] += velocities[id.x] * deltaTime;
+    HandleCollisions(id.x);
+}
