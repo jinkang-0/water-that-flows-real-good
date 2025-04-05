@@ -14,6 +14,10 @@ public class Simulation : MonoBehaviour
     [Range(0,1)] 
     public float collisionDamping = 0.05f;
 
+    [Header("Interaction Settings")] 
+    public float interactionRadius;
+    public float interactionStrength;
+
     [Header("References")] 
     public ComputeShader compute;
     public ParticleSpawner spawner;
@@ -36,6 +40,8 @@ public class Simulation : MonoBehaviour
 
     private void Start()
     {
+        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Attract, RightClick = Repel");
+    
         // target 60fps
         float deltaTime = 1 / 60f;
         Time.fixedDeltaTime = deltaTime;
@@ -120,9 +126,20 @@ public class Simulation : MonoBehaviour
         compute.SetVector("boundsSize", boundsSize);
         
         // mouse interactions
-        // Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        bool isPull = Input.GetMouseButton(0);
+        bool isPush = Input.GetMouseButton(1);
+        float interactionForce = 0;
+        if (isPull || isPush)
+        {
+            interactionForce = isPush ? -interactionStrength : interactionStrength;
+        }
+        
+        compute.SetVector("interactionInputPoint", mousePos);
+        compute.SetFloat("interactionInputForce", interactionForce);
+        compute.SetFloat("interactionInputRadius", interactionRadius);
     }
-    
+
     // reset buffer data to spawner data
     private void SetInitialBufferData(ParticleSpawner.ParticleSpawnData spawnData)
     {
@@ -169,5 +186,17 @@ public class Simulation : MonoBehaviour
     {
         Gizmos.color = new Color(0, 1, 0, 0.4f);
         Gizmos.DrawWireCube(Vector2.zero, boundsSize);
+
+        if (!Application.isPlaying) return;
+
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        bool isPull = Input.GetMouseButton(0);
+        bool isPush = Input.GetMouseButton(1);
+        
+        if (isPull || isPush)
+        {
+            Gizmos.color = isPull ? Color.green : Color.red;
+            Gizmos.DrawWireSphere(mousePos, interactionRadius);
+        }
     }
 }

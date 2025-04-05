@@ -159,6 +159,8 @@ MonoBehaviour:
   gravity: -0.098
   boundsSize: {x: 22.65, y: 9.9}
   collisionDamping: 0.339
+  interactionRadius: 3
+  interactionStrength: 1
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
   spawner: {fileID: 479015541}
   display: {fileID: 479015540}
@@ -236,7 +238,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 335de13571c0b3e4fa9337087516b978, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  particleCount: 100
+  particleCount: 1000
   initialVelocity: {x: 0, y: 0}
   spawnCenter: {x: 0, y: 0}
   spawnSize: {x: 2, y: 2}

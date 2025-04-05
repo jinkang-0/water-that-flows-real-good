@@ -14,10 +14,35 @@ const float deltaTime;
 const float collisionDamping;
 const float2 boundsSize;
 
+const float2 interactionInputPoint;
+const float interactionInputForce;
+const float interactionInputRadius;
+
+// assume mass = 1
 float2 HandleExternalForces(float2 pos, float2 velocity)
 {
-    float2 gravityAcceleration = float2(0, gravity);
-    return gravityAcceleration;
+    const float2 gravityAcceleration = float2(0, gravity);
+    float2 totalForce = gravityAcceleration;
+
+    if (interactionInputForce != 0)
+    {
+        // ensure particle is within interaction radius
+        const float2 inputPointOffset = interactionInputPoint - pos;
+        const float sqrDist = dot(inputPointOffset, inputPointOffset);
+        if (sqrDist < interactionInputRadius * interactionInputRadius)
+        {
+            // compute interaction force
+            const float dist = sqrt(sqrDist);
+            const float distPercentage = dist / interactionInputRadius;
+            const float forceWeight = 1 - distPercentage;
+            const float2 dirToInput = inputPointOffset / dist;
+            
+            const float2 interactionForce = dirToInput * forceWeight * interactionInputForce;
+            totalForce += interactionForce;
+        }
+    }
+    
+    return totalForce;
 }
 
 void HandleCollisions(uint particleIdx)
