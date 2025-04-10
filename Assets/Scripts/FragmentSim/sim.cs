@@ -12,10 +12,14 @@ public class Sim : MonoBehaviour
     public int sim_height = 100;
 
     // slow down simulation (`frames_per_step` calls to `FixedUpdate` for each actual update)
-    public int frames_per_step = 3;
+    public int frames_per_step = 40;
     private int frame_counter = 1;
 
-    private Shader shader;
+    public Shader shader;
+
+    public Sprite sp;
+    public SpriteRenderer spr;
+    public Texture2D sp_tex;
 
     private Material mat_A;
     private Material mat_B;
@@ -26,11 +30,16 @@ public class Sim : MonoBehaviour
     private bool tex_toggle = false;
     // draw the most recently updated texture when it's time to draw
     private bool last_updated_texture = false;
+    void Awake()
+    {
+        spr = gameObject.AddComponent<SpriteRenderer>();
+        spr.color = new Color(0.9f, 0.9f, 0.9f, 1.0f);
+    }
     // Start is called before the first frame update
     void Start()
     {
         // get shader to run simulation
-        shader = Shader.Find("RenderTexture/TestUV");
+        //shader = Shader.Find("RenderTexture/TestUV");
         // create materials for simulation (each material will have one of the textures bound)
         mat_A = new Material(shader);
         mat_B = new Material(shader);
@@ -76,6 +85,9 @@ public class Sim : MonoBehaviour
         // (each render texture will update based on the other)
         mat_A.SetTexture("_Tex", render_texture_B);
         mat_B.SetTexture("_Tex", render_texture_A);
+
+        sp_tex = new Texture2D(sim_width, sim_height, GraphicsFormat.R8G8B8A8_SRGB, TextureCreationFlags.None);
+        sp = Sprite.Create(sp_tex, new Rect(0, 0, 100, 100), Vector2.up);
     }
 
     // Update is called once per frame
@@ -101,11 +113,20 @@ public class Sim : MonoBehaviour
         }
         frame_counter = (frame_counter + 1) % frames_per_step;
     }
-    void OnGUI()
+    void Update()
     {
+        Debug.Log("Compute Shader Support: " + SystemInfo.supportsComputeShaders);
+        spr.sprite = sp;
         if (last_updated_texture)
-            Graphics.DrawTexture(new Rect(0, 0, Math.Min(Screen.width, Screen.height), Math.Min(Screen.width, Screen.height)), render_texture_A);
+            Graphics.CopyTexture(render_texture_A, sp_tex);
         else
-            Graphics.DrawTexture(new Rect(0, 0, Math.Min(Screen.width, Screen.height), Math.Min(Screen.width, Screen.height)), render_texture_B);
+            Graphics.CopyTexture(render_texture_B, sp_tex);
     }
+    //void OnGUI()
+    //{
+    //    //if (last_updated_texture)
+    //    //    Graphics.DrawTexture(new Rect(0, 0, Math.Min(Screen.width, Screen.height), Math.Min(Screen.width, Screen.height)), render_texture_A);
+    //    //else
+    //    //    Graphics.DrawTexture(new Rect(0, 0, Math.Min(Screen.width, Screen.height), Math.Min(Screen.width, Screen.height)), render_texture_B);
+    //}
 }

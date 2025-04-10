@@ -1,4 +1,4 @@
-Shader "RenderTexture/TestUV"
+Shader "Custom/SimulationV2"
 {
     Properties
     {
@@ -11,7 +11,6 @@ Shader "RenderTexture/TestUV"
     {
        Lighting Off
        ZTest Always Cull Off ZWrite Off
-       Fog { Mode off }
        Blend One Zero
 
        Pass
