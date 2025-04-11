@@ -11,6 +11,7 @@ public class Simulation : MonoBehaviour
     public int iterationsPerFrame;
     public float gravity;
     public Vector2 boundsSize;
+    public Vector2Int numCells;
     [Range(0,1)] 
     public float collisionDamping = 0.05f;
 
@@ -20,24 +21,31 @@ public class Simulation : MonoBehaviour
 
     [Header("References")] 
     public ComputeShader compute;
-    public ParticleSpawner spawner;
+    public Initializer initializer;
     public Display2D display;
     
+    // inferred variables
+    public Vector2 cellSize { get; private set; }
+    private int totalCells;
+    private int numVelocities;
+    private Initializer.SpawnData spawnData;
+
     // buffers
-    public ComputeBuffer positionBuffer { get; private set; }
-    public ComputeBuffer velocityBuffer { get; private set; }
-    
+    public ComputeBuffer cellTypeBuffer { get; private set; }
+    public ComputeBuffer vrVelocityBuffer { get; private set; }
+    public ComputeBuffer hrVelocityBuffer { get; private set; }
+    private ComputeBuffer hrVelocityBuffer2;
+    private ComputeBuffer vrVelocityBuffer2;
+
     // kernel IDs
     private const int externalForcesKernel = 0;
-    private const int updatePositionKernel = 1;
+    private const int updateCellsKernel = 1;
+    private const int applyVelocitiesKernel = 2;
 
     // state
     private bool isPaused;
     private bool pauseNextFrame;
-    private ParticleSpawner.ParticleSpawnData spawnData;
     
-    public int numParticles { get; private set; }
-
     private void Start()
     {
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Attract, RightClick = Repel");
@@ -46,22 +54,32 @@ public class Simulation : MonoBehaviour
         float deltaTime = 1 / 60f;
         Time.fixedDeltaTime = deltaTime;
         
-        // initialize spawner data
-        spawnData = spawner.GetSpawnData();
-        numParticles = spawnData.positions.Length;
-        
+        // determine cell size
+        cellSize = boundsSize / numCells;
+        totalCells = numCells.x * numCells.y;
+
         // create buffers
-        positionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
-        velocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
+        cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
+        vrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        vrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        hrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        hrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
         
         // initialize buffer data
-        SetInitialBufferData(spawnData);
+        spawnData = initializer.GetSpawnData(numCells);
+        SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, positionBuffer, "positions", externalForcesKernel, updatePositionKernel);
-        ComputeHelper.SetBuffer(compute, velocityBuffer, "velocities", externalForcesKernel, updatePositionKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, updateCellsKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities", externalForcesKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities", externalForcesKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
         
-        compute.SetInt("numParticles", numParticles);
+        compute.SetInt("totalCells", totalCells);
+        compute.SetInt("numRows", numCells.y);
+        compute.SetInt("numCols", numCells.x);
+        compute.SetVector("cellSize", cellSize);
         
         // initialize display
         display.Init(this);
@@ -113,8 +131,9 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: updatePositionKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
     }
 
     // update compute shader settings
@@ -127,29 +146,46 @@ public class Simulation : MonoBehaviour
         
         // mouse interactions
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        bool isPull = Input.GetMouseButton(0);
-        bool isPush = Input.GetMouseButton(1);
-        float interactionForce = 0;
-        if (isPull || isPush)
+        int interactionType = 0;
+        bool isPush = Input.GetMouseButton(0);
+        bool isDelete = Input.GetMouseButton(1);
+        if (isPush)
         {
-            interactionForce = isPush ? -interactionStrength : interactionStrength;
+            interactionType = 1;
+        } 
+        else if (isDelete)
+        {
+            interactionType = 2;
         }
         
         compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetFloat("interactionInputForce", interactionForce);
+        compute.SetFloat("interactionInputType", interactionType);
         compute.SetFloat("interactionInputRadius", interactionRadius);
     }
 
     // reset buffer data to spawner data
-    private void SetInitialBufferData(ParticleSpawner.ParticleSpawnData spawnData)
+    private void SetInitialBufferData()
     {
-        // get initial positions
-        float2[] initialPos = new float2[spawnData.positions.Length];
-        System.Array.Copy(spawnData.positions, initialPos, spawnData.positions.Length);
+        // get initial cell types
+        int[] initialCellTypes = new int[spawnData.cellTypes.Length];
+        System.Array.Copy(spawnData.cellTypes, initialCellTypes, spawnData.cellTypes.Length);
+        
+        // get initial velocities
+        float[] initialVrVelocities = new float[spawnData.vrVelocities.Length];
+        float[] initialVrVelocities2 = new float[spawnData.vrVelocities.Length];
+        float[] initialHrVelocities = new float[spawnData.hrVelocities.Length];
+        float[] initialHrVelocities2 = new float[spawnData.hrVelocities.Length];
+        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities, spawnData.vrVelocities.Length);
+        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities2, spawnData.vrVelocities.Length);
+        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities, spawnData.hrVelocities.Length);
+        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities2, spawnData.hrVelocities.Length);
         
         // update buffers
-        positionBuffer.SetData(initialPos);
-        velocityBuffer.SetData(spawnData.velocities);
+        cellTypeBuffer.SetData(initialCellTypes);
+        vrVelocityBuffer.SetData(initialVrVelocities);
+        vrVelocityBuffer2.SetData(initialVrVelocities2);
+        hrVelocityBuffer.SetData(initialHrVelocities);
+        hrVelocityBuffer2.SetData(initialHrVelocities2);
     }
 
     private void HandleInput()
@@ -173,13 +209,13 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             isPaused = true;
-            SetInitialBufferData(spawnData);
+            SetInitialBufferData();
         }
     }
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(positionBuffer, velocityBuffer);
+        ComputeHelper.Release(cellTypeBuffer, vrVelocityBuffer, vrVelocityBuffer2, hrVelocityBuffer, hrVelocityBuffer2);
     }
 
     private void OnDrawGizmos()
