@@ -46,7 +46,7 @@ public class Simulation : MonoBehaviour
     
     private void Start()
     {
-        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Attract, RightClick = Repel");
+        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
     
         // target 60fps
         float deltaTime = 1 / 60f;
