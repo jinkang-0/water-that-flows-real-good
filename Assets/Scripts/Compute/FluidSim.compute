@@ -14,33 +14,32 @@ RWStructuredBuffer<float> hrVelocitiesOut;
 // settings
 const float gravity;
 const float deltaTime;
-const float collisionDamping;
 const float2 boundsSize;
 const float2 cellSize;
 const int numRows;
 const int numCols;
-const int totalCells;
-const int numVelocities;
+const uint totalCells;
 
 const float2 interactionInputPoint;
 const int interactionInputType;
 const float interactionInputRadius;
 
-int idToCol(uint3 id)
+int idToCol(uint id)
 {
     return id % numCols;
 }
 
-int idToRow(uint3 id)
+int idToRow(uint id)
 {
     return id / numCols;
 }
 
-float2 gridPosition(uint3 id)
+float2 gridPosition(uint id)
 {
     const int col = idToCol(id);
     const int row = idToRow(id);
-    return (float2(col, row) + 0.5) * cellSize;
+    const float2 boundCorner = -boundsSize / 2;
+    return boundCorner + (float2(col, row) + 0.5) * cellSize;
 }
 
 [numthreads(NumThreads, 1, 1)]
@@ -48,7 +47,7 @@ void ExternalForces(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
 
-    vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity;
+    vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
 }
 
 [numthreads(NumThreads, 1, 1)]
@@ -56,15 +55,15 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
 
-    if (cellTypes[id.x] == 0 && interactionInputType == 2)
+    if (cellTypes[id.x] == 1 && interactionInputType == 2)
     {
         // check if grid is within interaction radius
         const float2 pos = gridPosition(id.x);
         const float2 offset = interactionInputPoint - pos;
-        const float2 sqrDist = dot(offset, offset);
+        const float sqrDist = dot(offset, offset);
         if (sqrDist < interactionInputRadius * interactionInputRadius)
         {
-            cellTypes[id.x] = 1;
+            cellTypes[id.x] = 0;
         }
     }
 }
@@ -72,7 +71,7 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
 [numthreads(NumThreads, 1, 1)]
 void ApplyVelocities(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= numVelocities) return;
+    if (id.x >= totalCells) return;
 
     vrVelocities[id.x] = vrVelocitiesOut[id.x];
     hrVelocities[id.x] = hrVelocitiesOut[id.x];

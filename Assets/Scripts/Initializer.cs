@@ -26,7 +26,7 @@ public class Initializer : MonoBehaviour
         // generate floor and ceiling
         for (int i = 0; i < numCells.x; i++)
         {
-            data.cellTypes[i] = 0;
+            data.cellTypes[i] = 1;
             data.cellTypes[numCells.x * (numCells.y - 1) + i] = 1;
         }
         

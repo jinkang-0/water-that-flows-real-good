@@ -12,8 +12,6 @@ public class Simulation : MonoBehaviour
     public float gravity;
     public Vector2 boundsSize;
     public Vector2Int numCells;
-    [Range(0,1)] 
-    public float collisionDamping = 0.05f;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
@@ -70,7 +68,7 @@ public class Simulation : MonoBehaviour
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, updateCellsKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", updateCellsKernel);
         ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities", externalForcesKernel, applyVelocitiesKernel);
         ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
         ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities", externalForcesKernel, applyVelocitiesKernel);
@@ -141,7 +139,6 @@ public class Simulation : MonoBehaviour
     {
         compute.SetFloat("deltaTime", deltaTime);
         compute.SetFloat("gravity", gravity);
-        compute.SetFloat("collisionDamping", collisionDamping);
         compute.SetVector("boundsSize", boundsSize);
         
         // mouse interactions
@@ -159,7 +156,7 @@ public class Simulation : MonoBehaviour
         }
         
         compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetFloat("interactionInputType", interactionType);
+        compute.SetInt("interactionInputType", interactionType);
         compute.SetFloat("interactionInputRadius", interactionRadius);
     }
 
@@ -220,8 +217,20 @@ public class Simulation : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+        // draw simulation bounds
         Gizmos.color = new Color(0, 1, 0, 0.4f);
         Gizmos.DrawWireCube(Vector2.zero, boundsSize);
+
+        // draw cells
+        Vector2 cellSize = boundsSize / numCells;
+        Vector2 lowerCorner = -boundsSize / 2;
+        for (int y = 0; y < numCells.y; y++)
+        {
+            for (int x = 0; x < numCells.x; x++)
+            {
+                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*cellSize, cellSize);
+            }
+        }
 
         if (!Application.isPlaying) return;
 
