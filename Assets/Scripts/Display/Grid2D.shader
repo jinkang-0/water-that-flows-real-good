@@ -37,9 +37,10 @@ Shader "Custom/Grid2D"
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 color : TEXCOORD1;
+                float2 size : TEXCOORD2;
             };
 
-            v2f vert(appdata_full v, uint instanceID : SV_InstanceID)
+            v2f vert(const appdata_full v, const uint instanceID : SV_InstanceID)
             {
                 const int row = instanceID / numCols;
                 const int col = instanceID % numCols;
@@ -48,11 +49,13 @@ Shader "Custom/Grid2D"
                 const float3 centerWorld = boundCorner + float3(col + 0.5, row + 0.5, 0) * float3(cellSize, 0);
                 const float3 worldVertPos = centerWorld + mul(unity_ObjectToWorld, v.vertex * scale);
                 const float3 objectVertPos = mul(unity_WorldToObject, float4(worldVertPos.xyz, 1));
+                const float3 objectSize = mul(unity_WorldToObject, float4(cellSize.xy, 1, 1));
                 
                 v2f o;
                 o.uv = v.texcoord;
                 o.pos = UnityObjectToClipPos(objectVertPos);
-                o.color = float3(0,0,0);
+                o.color = float4(0,0,0,0);
+                o.size = objectSize.xy;
 
                 if (cellTypes[instanceID] == 1)
                     o.color = terrainColor;
@@ -62,15 +65,15 @@ Shader "Custom/Grid2D"
 
             float4 frag (v2f i) : SV_Target
             {
-                // this turns it into a circle
-                // const float2 centerOffset = (i.uv.xy - 0.5) * 2;
-                // const float sqrDst = dot(centerOffset, centerOffset);
-                // const float delta = fwidth(sqrt(sqrDst));
-                // const float alpha = 1 - smoothstep(1 - delta, 1 + delta, sqrDst);
-
+                // square
+                const float2 edgeDist = abs((i.uv.xy - 0.5) * 2);
+                const float insideX = step(edgeDist.x, i.size.x);
+                const float insideY = step(edgeDist.y, i.size.y);
+                const float alpha = insideX * insideY;
+                
                 const float3 color = i.color;
                 
-                return float4(color, 1);
+                return float4(color, alpha);
             }
             
             ENDCG

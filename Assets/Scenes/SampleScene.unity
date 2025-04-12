@@ -158,7 +158,7 @@ MonoBehaviour:
   iterationsPerFrame: 3
   gravity: -0.098
   boundsSize: {x: 16, y: 9}
-  numCells: {x: 32, y: 18}
+  numCells: {x: 64, y: 36}
   interactionRadius: 3
   interactionStrength: 1
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
