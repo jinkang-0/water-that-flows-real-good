@@ -157,12 +157,12 @@ MonoBehaviour:
   fixedTimeStep: 1
   iterationsPerFrame: 3
   gravity: -0.098
-  boundsSize: {x: 22.65, y: 9.9}
-  collisionDamping: 0.339
+  boundsSize: {x: 16, y: 9}
+  numCells: {x: 64, y: 36}
   interactionRadius: 3
   interactionStrength: 1
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
-  spawner: {fileID: 479015541}
+  initializer: {fileID: 479015541}
   display: {fileID: 479015540}
 --- !u!4 &479015539
 Transform:
@@ -191,41 +191,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89b25ea23bec27b438cddd038a9f3ce1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  scale: 1
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   shader: {fileID: 4800000, guid: c3d7ba0d1a704334195523c97636e4fc, type: 3}
-  scale: 0.08
-  colorMap:
-    serializedVersion: 2
-    key0: {r: 0.074396506, g: 0.28854594, b: 0.9169811, a: 1}
-    key1: {r: 0.8557719, g: 0.90188676, b: 0.28417936, a: 1}
-    key2: {r: 1, g: 0, b: 0, a: 0}
-    key3: {r: 0, g: 0, b: 0, a: 0}
-    key4: {r: 0, g: 0, b: 0, a: 0}
-    key5: {r: 0, g: 0, b: 0, a: 0}
-    key6: {r: 0, g: 0, b: 0, a: 0}
-    key7: {r: 0, g: 0, b: 0, a: 0}
-    ctime0: 0
-    ctime1: 32768
-    ctime2: 65535
-    ctime3: 0
-    ctime4: 0
-    ctime5: 0
-    ctime6: 0
-    ctime7: 0
-    atime0: 0
-    atime1: 65535
-    atime2: 0
-    atime3: 0
-    atime4: 0
-    atime5: 0
-    atime6: 0
-    atime7: 0
-    m_Mode: 0
-    m_ColorSpace: -1
-    m_NumColorKeys: 3
-    m_NumAlphaKeys: 2
-  gradientResolution: 64
-  velocityDisplayMax: 6.5
+  terrain: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 0}
 --- !u!114 &479015541
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -238,12 +207,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 335de13571c0b3e4fa9337087516b978, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  particleCount: 1000
-  initialVelocity: {x: 0, y: 0}
-  spawnCenter: {x: 0, y: 0}
-  spawnSize: {x: 2, y: 2}
-  jitterStrength: 0.03
-  showSpawnBoundGizmos: 1
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,89 +1,78 @@
 #pragma kernel ExternalForces
-#pragma kernel UpdatePositions
+#pragma kernel UpdateCellTypes
+#pragma kernel ApplyVelocities
 
 static const int NumThreads = 64;
 
 // buffers
-RWStructuredBuffer<float2> positions;
-RWStructuredBuffer<float2> velocities;
+RWStructuredBuffer<int> cellTypes;
+RWStructuredBuffer<float> vrVelocities;
+RWStructuredBuffer<float> vrVelocitiesOut;
+RWStructuredBuffer<float> hrVelocities;
+RWStructuredBuffer<float> hrVelocitiesOut;
 
 // settings
-const uint numParticles;
 const float gravity;
 const float deltaTime;
-const float collisionDamping;
 const float2 boundsSize;
+const float2 cellSize;
+const int numRows;
+const int numCols;
+const uint totalCells;
 
 const float2 interactionInputPoint;
-const float interactionInputForce;
+const int interactionInputType;
 const float interactionInputRadius;
 
-// assume mass = 1
-float2 HandleExternalForces(float2 pos, float2 velocity)
+int idToCol(uint id)
 {
-    const float2 gravityAcceleration = float2(0, gravity);
-    float2 totalForce = gravityAcceleration;
-
-    if (interactionInputForce != 0)
-    {
-        // ensure particle is within interaction radius
-        const float2 inputPointOffset = interactionInputPoint - pos;
-        const float sqrDist = dot(inputPointOffset, inputPointOffset);
-        if (sqrDist < interactionInputRadius * interactionInputRadius)
-        {
-            // compute interaction force
-            const float dist = sqrt(sqrDist);
-            const float distPercentage = dist / interactionInputRadius;
-            const float forceWeight = 1 - distPercentage;
-            const float2 dirToInput = inputPointOffset / dist;
-            
-            const float2 interactionForce = dirToInput * forceWeight * interactionInputForce;
-            totalForce += interactionForce;
-        }
-    }
-    
-    return totalForce;
+    return id % numCols;
 }
 
-void HandleCollisions(uint particleIdx)
+int idToRow(uint id)
 {
-    float2 pos = positions[particleIdx];
-    float2 vel = velocities[particleIdx];
+    return id / numCols;
+}
 
-    // keep particle within bounds
-    const float2 halfSize = boundsSize / 2;
-    float2 edgeDist = halfSize - abs(pos);
-
-    if (edgeDist.x <= 0)
-    {
-        pos.x = halfSize.x * sign(pos.x);
-        vel.x *= -1 * (1 - collisionDamping);
-    }
-
-    if (edgeDist.y <= 0)
-    {
-        pos.y = halfSize.y * sign(pos.y);
-        vel.y *= -1 * (1 - collisionDamping);
-    }
-
-    // update position and velocity
-    positions[particleIdx] = pos;
-    velocities[particleIdx] = vel;
+float2 gridPosition(uint id)
+{
+    const int col = idToCol(id);
+    const int row = idToRow(id);
+    const float2 boundCorner = -boundsSize / 2;
+    return boundCorner + (float2(col, row) + 0.5) * cellSize;
 }
 
 [numthreads(NumThreads, 1, 1)]
 void ExternalForces(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= numParticles) return;
+    if (id.x >= totalCells) return;
 
-    velocities[id.x] += HandleExternalForces(positions[id.x], velocities[id.x] * deltaTime);
+    vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
 }
 
 [numthreads(NumThreads, 1, 1)]
-void UpdatePositions(uint3 id : SV_DispatchThreadID)
+void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= numParticles) return;
+    if (id.x >= totalCells) return;
 
-    positions[id.x] += velocities[id.x] * deltaTime;
-    HandleCollisions(id.x);
+    if (cellTypes[id.x] == 1 && interactionInputType == 2)
+    {
+        // check if grid is within interaction radius
+        const float2 pos = gridPosition(id.x);
+        const float2 offset = interactionInputPoint - pos;
+        const float sqrDist = dot(offset, offset);
+        if (sqrDist < interactionInputRadius * interactionInputRadius)
+        {
+            cellTypes[id.x] = 0;
+        }
+    }
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ApplyVelocities(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+
+    vrVelocities[id.x] = vrVelocitiesOut[id.x];
+    hrVelocities[id.x] = hrVelocitiesOut[id.x];
 }
