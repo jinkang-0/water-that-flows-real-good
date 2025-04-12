@@ -157,7 +157,7 @@ MonoBehaviour:
   fixedTimeStep: 1
   iterationsPerFrame: 3
   gravity: -0.098
-  boundsSize: {x: 22.65, y: 9.9}
+  boundsSize: {x: 16, y: 9}
   numCells: {x: 32, y: 18}
   interactionRadius: 3
   interactionStrength: 1
