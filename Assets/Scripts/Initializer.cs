@@ -9,12 +9,14 @@ public class Initializer : MonoBehaviour
         public int[] cellTypes;
         public float[] vrVelocities;
         public float[] hrVelocities;
+        public float[] Pressures;
 
         public SpawnData(int numCells)
         {
             cellTypes = new int[numCells];
             vrVelocities = new float[numCells];
             hrVelocities = new float[numCells];
+            Pressures = new float[numCells];
         }
     }
     
@@ -43,6 +45,12 @@ public class Initializer : MonoBehaviour
         {
             data.vrVelocities[i] = rng.NextFloat() - 0.5f;
             data.hrVelocities[i] = rng.NextFloat() - 0.5f;
+        }
+
+        // generate random pressures
+        for (int i = 0; i < totalCells; i++)
+        {
+            data.Pressures[i] = rng.NextFloat();
         }
         
         return data;

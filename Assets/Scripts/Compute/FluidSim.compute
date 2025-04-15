@@ -1,6 +1,10 @@
 #pragma kernel ExternalForces
+#pragma kernel DivergenceA
+#pragma kernel DivergenceB
+#pragma kernel Pressure
 #pragma kernel UpdateCellTypes
 #pragma kernel ApplyVelocities
+#pragma kernel ApplyPressure
 
 static const int NumThreads = 64;
 
@@ -10,6 +14,8 @@ RWStructuredBuffer<float> vrVelocities;
 RWStructuredBuffer<float> vrVelocitiesOut;
 RWStructuredBuffer<float> hrVelocities;
 RWStructuredBuffer<float> hrVelocitiesOut;
+RWStructuredBuffer<float> Pressures;
+RWStructuredBuffer<float> PressuresOut;
 
 // settings
 const float gravity;
@@ -34,6 +40,11 @@ int idToRow(uint id)
     return id / numCols;
 }
 
+uint posToId(uint2 pos)
+{
+    return pos.y * numCols + pos.x;
+}
+
 float2 gridPosition(uint id)
 {
     const int col = idToCol(id);
@@ -47,7 +58,115 @@ void ExternalForces(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
 
-    vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
+    //vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
+    hrVelocitiesOut[id.x] = hrVelocities[id.x] + gravity * deltaTime;
+}
+
+bool isDrain(int cell_type)
+{
+    return cell_type == 3;
+}
+bool isSolid(int cell_type)
+{
+    return cell_type == 1;
+}
+bool isWater(int cell_type)
+{
+    return cell_type == 0;
+}
+
+bool checkerboard(uint2 pos, bool which)
+{
+    return which != ((pos.x + pos.y % 2) % 2 == 0);
+}
+
+float getVelH(uint2 pos)
+{
+    return hrVelocities[posToId(pos)];
+}
+float getVelV(uint2 pos)
+{
+    return vrVelocities[posToId(pos)];
+}
+float setVelH(uint2 pos, float vel)
+{
+    hrVelocitiesOut[posToId(pos)] = vel;
+}
+float setVelV(uint2 pos, float vel)
+{
+    vrVelocitiesOut[posToId(pos)] = vel;
+}
+
+void div_update_checker(uint3 id, bool which)
+{
+    if (id.x >= totalCells) return;
+
+    // only run if there is fluid in this cell
+    if (isWater(cellTypes[id.x]))
+    {
+        uint2 pos = uint2(idToCol(id.x), idToRow(id.x));
+        // split work by checkerboard pattern
+        if (checkerboard(pos, which))
+        {
+            // velocities of adjacent cells
+            float vel_left  = hrVelocities[posToId(pos + uint2( 0, -1))];
+            float vel_right = hrVelocities[posToId(pos + uint2( 0,  0))];
+            float vel_down  = vrVelocities[posToId(pos + uint2(-1,  0))];
+            float vel_up    = vrVelocities[posToId(pos + uint2( 0,  0))];
+
+            // solidity of adjacent cells
+            bool sol_left   = isSolid(cellTypes[posToId(pos + uint2( 0, -1))]);
+            bool sol_right  = isSolid(cellTypes[posToId(pos + uint2( 0,  1))]);
+            bool sol_down   = isSolid(cellTypes[posToId(pos + uint2(-1,  0))]);
+            bool sol_up     = isSolid(cellTypes[posToId(pos + uint2( 1,  0))]);
+
+            // only look at velocity of non-solid cells
+            vel_left    *= sol_left  ? 0.0 : 1.0;
+            vel_right   *= sol_right ? 0.0 : 1.0;
+            vel_up      *= sol_up    ? 0.0 : 1.0;
+            vel_down    *= sol_down  ? 0.0 : 1.0;
+
+            // divergence out of this cell
+            float divergence = 1.9 * (-vel_left + vel_right - vel_down + vel_up);
+            
+            float n = float((sol_left ? 0.0 : 1.0) + (sol_right ? 0.0 : 1.0) + (sol_down ? 0.0 : 1.0) + (sol_up ? 0.0 : 1.0));
+
+            float div_effect = divergence /= n;
+
+            // update the pressure
+            if (n != 0.0)
+            {
+                PressuresOut[id.x] = Pressures[id.x] + 1.0 * divergence;
+            }
+
+            // make divergence 0
+            hrVelocitiesOut[posToId(pos + uint2( 0, -1))] = sol_left  ? 0.0 : vel_left + div_effect;
+            hrVelocitiesOut[posToId(pos + uint2( 0,  0))] = sol_right ? 0.0 : vel_right - div_effect;
+            vrVelocitiesOut[posToId(pos + uint2(-1,  0))] = sol_down  ? 0.0 : vel_down + div_effect;
+            vrVelocitiesOut[posToId(pos + uint2( 0,  0))] = sol_up    ? 0.0 : vel_up - div_effect;
+        }
+    }
+}
+
+// first checkerboard
+[numthreads(NumThreads, 1, 1)]
+void DivergenceA(uint3 id : SV_DispatchThreadID)
+{
+    div_update_checker(id, false);
+}
+
+// second checkerboard
+[numthreads(NumThreads, 1, 1)]
+void DivergenceB(uint3 id : SV_DispatchThreadID)
+{
+    div_update_checker(id, true);
+}
+
+// `Pressure` kernel is currently unused
+[numthreads(NumThreads, 1, 1)]
+void Pressure(uint3 id : SV_DispatchThreadID)
+{
+    PressuresOut[id.x] = Pressures[id.x];
 }
 
 [numthreads(NumThreads, 1, 1)]
@@ -55,6 +174,13 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
 
+    if (distance(gridPosition(id.x), interactionInputPoint) < interactionInputRadius)
+    {
+        if (interactionInputType == 1)
+        {
+            cellTypes[id.x] = 1;
+        }
+    }
     if (cellTypes[id.x] == 1 && interactionInputType == 2)
     {
         // check if grid is within interaction radius
@@ -75,4 +201,12 @@ void ApplyVelocities(uint3 id : SV_DispatchThreadID)
 
     vrVelocities[id.x] = vrVelocitiesOut[id.x];
     hrVelocities[id.x] = hrVelocitiesOut[id.x];
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ApplyPressure(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+
+    Pressures[id.x] = PressuresOut[id.x];
 }
