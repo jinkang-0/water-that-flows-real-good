@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- metadata -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- tab title -->
+    <title>Milestone Report | Interactive Fluid Simulation</title>
+
+    <!-- load icon -->
+    <link rel="shortcut icon" href="../favicon.ico" type="image/x-icon" />
+
+    <!-- load fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- load website styles -->
+    <link rel="stylesheet" href="../global.css" />
+    <link rel="stylesheet" href="../article.css" />
+  </head>
+  <body>
+    <main>
+      <article>
+        <a href="../"><- Other reports</a>
+        <header>
+          <h1>Interactive Fluid Simulation</h1>
+          <p class="gray">
+            Team: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
+          </p>
+          <p>
+            Webpage:
+            <a
+              href="https://jinkang-0.github.io/water-that-flows-real-good/milestone/"
+              >jinkang-0.github.io/water-that-flows-real-good/milestone/</a
+            >
+          </p>
+        </header>
+        <section>
+          <h2>Accomplishments & Reflections</h2>
+          <p>
+            So far, we have the project setup in Unity using compute shaders,
+            with rendering complete using a material shader. With this, we
+            completed the first milestone of getting an Eulerian fluid
+            simulation working in Unity, complete with basic mouse interactions
+            to remove obstructing terrain.
+          </p>
+          <p>
+            Our team chose to go for FLIP fluid simulation in the end, which is
+            a hybrid of both Eulerian and Lagrangian approaches. We are
+            implementing the Eulerian fluid simulation first since FLIP is built
+            on top of it.
+          </p>
+          <p>
+            At the same time, we also have a couple level designs setup for the
+            game (we are going for a Where's My Water clone). We're also in the
+            middle of implementing the level loader, which loads levels from a
+            texture file that describes the level.
+          </p>
+          <p>
+            We're making good pace so far towards our goal. Despite accidentally
+            thinking we had one more week than we actually did, we should still
+            be on track to finishing our project by the deadline with some time
+            to spare.
+          </p>
+        </section>
+        <section>
+          <h2>Schedule</h2>
+          <p>
+            We will be keeping the schedule roughly the same as we had in our
+            proposal.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <td>Time</td>
+                <td>Items</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <b>Week 4</b>
+                  <p>(Apr. 14 - Apr. 18)</p>
+                </td>
+                <td>
+                  Write milestone report, level design and loading, Eulerian
+                  fluid simulation
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 5</b>
+                  <p>(Apr. 21 - Apr. 25)</p>
+                </td>
+                <td>
+                  FLIP fluid simulation, different colored fluids, particle
+                  shaders (prepare for midterm)
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 6</b>
+                  <p>(Apr. 28 - May 2)</p>
+                </td>
+                <td>Shaders for water splashes, level tweaking, debugging</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Final Days</b>
+                  <p>(May 2 - May 5)</p>
+                </td>
+                <td>
+                  Debugging, tie up loose ends, export to web, write
+                  deliverables
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>
