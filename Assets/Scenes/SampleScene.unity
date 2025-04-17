@@ -159,7 +159,7 @@ MonoBehaviour:
   gravity: -0.098
   boundsSize: {x: 16, y: 9}
   numCells: {x: 64, y: 36}
-  interactionRadius: 3
+  interactionRadius: 1
   interactionStrength: 1
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
   initializer: {fileID: 479015541}

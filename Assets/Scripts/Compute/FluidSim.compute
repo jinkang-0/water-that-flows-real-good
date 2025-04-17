@@ -1,6 +1,7 @@
 #pragma kernel ExternalForces
 #pragma kernel DivergenceA
 #pragma kernel DivergenceB
+#pragma kernel DampenVelocities
 #pragma kernel Pressure
 #pragma kernel UpdateCellTypes
 #pragma kernel ApplyVelocities
@@ -131,12 +132,12 @@ void div_update_checker(uint3 id, bool which)
             
             float n = float((sol_left ? 0.0 : 1.0) + (sol_right ? 0.0 : 1.0) + (sol_down ? 0.0 : 1.0) + (sol_up ? 0.0 : 1.0));
 
-            float div_effect = divergence /= n;
+            float div_effect = divergence / n;
 
             // update the pressure
             if (n != 0.0)
             {
-                PressuresOut[id.x] = Pressures[id.x] + 1.0 * divergence;
+                PressuresOut[id.x] = Pressures[id.x] + 1.9 * divergence;
             }
 
             // make divergence 0
@@ -162,6 +163,15 @@ void DivergenceB(uint3 id : SV_DispatchThreadID)
     div_update_checker(id, true);
 }
 
+[numthreads(NumThreads, 1, 1)]
+void DampenVelocities(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+
+    hrVelocitiesOut[id.x] = hrVelocities[id.x] * 0.9;
+    vrVelocitiesOut[id.x] = vrVelocities[id.x] * 0.9;
+}
+
 // `Pressure` kernel is currently unused
 [numthreads(NumThreads, 1, 1)]
 void Pressure(uint3 id : SV_DispatchThreadID)
@@ -178,7 +188,9 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
     {
         if (interactionInputType == 1)
         {
-            cellTypes[id.x] = 1;
+            //hrVelocitiesOut[id.x] = hrVelocities[id.x] * 0.9;
+            vrVelocitiesOut[id.x] = vrVelocities[id.x] + 0.1;
+            //cellTypes[id.x] = 1;
         }
     }
     if (cellTypes[id.x] == 1 && interactionInputType == 2)

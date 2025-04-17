@@ -42,6 +42,7 @@ public class Simulation : MonoBehaviour
     private int externalForcesKernel = 0;
     private int divergenceKernelA = 0;
     private int divergenceKernelB = 0;
+    private int dampenVelocitiesKernel = 0;
     private int pressureKernel = 0;
     private int updateCellsKernel = 0;
     private int applyVelocitiesKernel = 0;
@@ -56,6 +57,7 @@ public class Simulation : MonoBehaviour
         externalForcesKernel =  compute.FindKernel("ExternalForces");
         divergenceKernelA =     compute.FindKernel("DivergenceA");
         divergenceKernelB =     compute.FindKernel("DivergenceB");
+        dampenVelocitiesKernel = compute.FindKernel("DampenVelocities");
         pressureKernel =        compute.FindKernel("Pressure");
         updateCellsKernel =     compute.FindKernel("UpdateCellTypes");
         applyVelocitiesKernel = compute.FindKernel("ApplyVelocities");
@@ -85,11 +87,11 @@ public class Simulation : MonoBehaviour
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes",                                 divergenceKernelA, divergenceKernelB,                 updateCellsKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, pressureKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB,                 applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, pressureKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB,                 applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes",                                 divergenceKernelA, divergenceKernelB,                         updateCellsKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel, pressureKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel,                 applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel, pressureKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel,                 applyVelocitiesKernel);
 
         ComputeHelper.SetBuffer(compute, PressureBuffer, "Pressures", divergenceKernelA, divergenceKernelB, pressureKernel, applyPressureKernel);
         ComputeHelper.SetBuffer(compute, PressureBuffer2, "PressuresOut", divergenceKernelA, divergenceKernelB, pressureKernel, applyPressureKernel);
@@ -159,6 +161,10 @@ public class Simulation : MonoBehaviour
         // second checkerboard
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: divergenceKernelB);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
+
+        // dampen velocities
+        //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: dampenVelocitiesKernel);
+        //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
 
         //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: pressureKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyPressureKernel);
