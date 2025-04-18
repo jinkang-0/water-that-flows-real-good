@@ -30,14 +30,18 @@ public class Simulation : MonoBehaviour
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
     public DoubleBufferHelper<Vector2> velocitiesBuffer { get; private set; }
+    public ComputeBuffer divergenceBuffer { get; private set; }
     public DoubleBufferHelper<float> pressuresBuffer { get; private set; }
+    public DoubleBufferHelper<Vector3> colorBuffer { get; private set; }
 
     // kernel IDs
     private int userInputKernel = 0;
     private int advectKernel = 0;
     private int diffuseKernel = 0;
     private int divergenceKernel = 0;
+    private int pressureKernel = 0;
     private int gradientKernel = 0;
+    private int advectColorsKernel = 0;
 
     // state
     private bool isPaused;
@@ -49,7 +53,10 @@ public class Simulation : MonoBehaviour
         advectKernel = compute.FindKernel("advect");
         diffuseKernel = compute.FindKernel("jacobi_diffuse");
         divergenceKernel = compute.FindKernel("projection_divergence");
+        pressureKernel = compute.FindKernel("jacobi_pressure");
         gradientKernel = compute.FindKernel("gradient_subtraction");
+
+        advectColorsKernel = compute.FindKernel("advect_colors");
 
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
     
@@ -65,7 +72,9 @@ public class Simulation : MonoBehaviour
         //cellTypeBuffer = new DoubleBufferHelper<uint>(totalCells);
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
         velocitiesBuffer = new DoubleBufferHelper<Vector2>(totalCells);
+        divergenceBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
         pressuresBuffer = new DoubleBufferHelper<float>(totalCells);
+        colorBuffer = new DoubleBufferHelper<Vector3>(totalCells);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells);
@@ -128,6 +137,7 @@ public class Simulation : MonoBehaviour
         compute.SetBuffer(userInputKernel, "inout_cell_types", cellTypeBuffer);
         compute.SetBuffer(userInputKernel, "in_velocities", velocitiesBuffer.buffer_read);
         compute.SetBuffer(userInputKernel, "out_velocities", velocitiesBuffer.buffer_write);
+        compute.SetBuffer(userInputKernel, "out_colors", colorBuffer.buffer_read);
         ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: userInputKernel);
         velocitiesBuffer.swap();
 
@@ -141,7 +151,7 @@ public class Simulation : MonoBehaviour
         // diffuse
         // run jacobi iterations to find solution
         
-        for (int i = 0; i < 80; ++i)
+        for (int i = 0; i < 0; ++i)
         {
             compute.SetBuffer(diffuseKernel, "inout_cell_types", cellTypeBuffer);
             compute.SetBuffer(diffuseKernel, "in_velocities", velocitiesBuffer.buffer_read);
@@ -151,18 +161,40 @@ public class Simulation : MonoBehaviour
         }
         
         
+        // find divergence
         compute.SetBuffer(divergenceKernel, "inout_cell_types", cellTypeBuffer);
         compute.SetBuffer(divergenceKernel, "in_velocities", velocitiesBuffer.buffer_read);
-        compute.SetBuffer(divergenceKernel, "out_pressures", pressuresBuffer.buffer_write);
+        compute.SetBuffer(divergenceKernel, "out_divergence", divergenceBuffer);
         ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: divergenceKernel);
-        pressuresBuffer.swap();
-        
+
+        // solve for pressure
+        // zero out initial guess for pressure
+        pressuresBuffer.buffer_read.SetData(spawnData.zeros);
+        for (int i = 0; i < 80; ++i)
+        {
+            compute.SetBuffer(pressureKernel, "inout_cell_types", cellTypeBuffer);
+            compute.SetBuffer(pressureKernel, "in_pressures", pressuresBuffer.buffer_read);
+            compute.SetBuffer(pressureKernel, "out_pressures", pressuresBuffer.buffer_write);
+            compute.SetBuffer(pressureKernel, "in_divergence", divergenceBuffer);
+            ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: pressureKernel);
+            pressuresBuffer.swap();
+        }
+
+        // subtract gradient of pressure from velocity
         compute.SetBuffer(gradientKernel, "inout_cell_types", cellTypeBuffer);
         compute.SetBuffer(gradientKernel, "in_velocities", velocitiesBuffer.buffer_read);
         compute.SetBuffer(gradientKernel, "out_velocities", velocitiesBuffer.buffer_write);
         compute.SetBuffer(gradientKernel, "in_pressures", pressuresBuffer.buffer_read);
         ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: gradientKernel);
         velocitiesBuffer.swap();
+
+        // advect
+        compute.SetBuffer(advectColorsKernel, "inout_cell_types", cellTypeBuffer);
+        compute.SetBuffer(advectColorsKernel, "in_velocities", velocitiesBuffer.buffer_read);
+        compute.SetBuffer(advectColorsKernel, "in_colors", colorBuffer.buffer_read);
+        compute.SetBuffer(advectColorsKernel, "out_colors", colorBuffer.buffer_write);
+        ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: advectColorsKernel);
+        colorBuffer.swap();
     }
 
     // update compute shader settings
@@ -213,6 +245,7 @@ public class Simulation : MonoBehaviour
         cellTypeBuffer.SetData(spawnData.cellTypes);
         velocitiesBuffer.buffer_read.SetData(spawnData.velocities);
         pressuresBuffer.buffer_read.SetData(spawnData.Pressures);
+        colorBuffer.buffer_read.SetData(spawnData.colors);
     }
 
     private void HandleInput()
@@ -274,6 +307,8 @@ public class Simulation : MonoBehaviour
     {
         cellTypeBuffer.Release();
         velocitiesBuffer.destroy();
+        divergenceBuffer.Release();
         pressuresBuffer.destroy();
+        colorBuffer.destroy();
     }
 }

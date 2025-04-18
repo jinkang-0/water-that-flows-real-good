@@ -21,6 +21,7 @@ Shader "Custom/Grid2D"
             StructuredBuffer<int> cellTypes;
             StructuredBuffer<float2> velocities;
             StructuredBuffer<float> pressures;
+            StructuredBuffer<float3> colors;
 
             float scale;
             int numRows;
@@ -60,6 +61,7 @@ Shader "Custom/Grid2D"
                 // display the velocities and pressure by default
 
                 o.color = float4(velocities[instanceID], pressures[instanceID], 1.0);
+                o.color = float4(colors[instanceID], 1.0);
                 //o.color = float4(pressures[instanceID], pressures[instanceID], pressures[instanceID], 1.0);
 
                 //o.color = float4(vrVelocities[instanceID], hrVelocities[instanceID], Pressures[instanceID], 1);

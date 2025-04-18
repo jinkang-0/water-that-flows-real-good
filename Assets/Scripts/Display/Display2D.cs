@@ -21,6 +21,7 @@ public class Display2D : MonoBehaviour
         material.SetBuffer("cellTypes", sim.cellTypeBuffer);
         material.SetBuffer("velocities", sim.velocitiesBuffer.buffer_read);
         material.SetBuffer("pressures", sim.pressuresBuffer.buffer_read);
+        material.SetBuffer("colors", sim.colorBuffer.buffer_read);
 
         argsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);

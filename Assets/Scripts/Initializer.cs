@@ -8,13 +8,17 @@ public class Initializer : MonoBehaviour
     {
         public int[] cellTypes;
         public Vector2[] velocities;
+        public float[] zeros;
         public float[] Pressures;
+        public Vector3[] colors;
 
         public SpawnData(int numCells)
         {
             cellTypes = new int[numCells];
             velocities = new Vector2[numCells];
+            zeros = new float[numCells];
             Pressures = new float[numCells];
+            colors = new Vector3[numCells];
         }
     }
     
@@ -44,10 +48,21 @@ public class Initializer : MonoBehaviour
             data.velocities[i] = 0.2f * new Vector2(rng.NextFloat() - 0.5f, rng.NextFloat() - 0.5f);
         }
 
+        for (int i = 0; i < totalCells; i++)
+        {
+            data.zeros[i] = 0.0f;
+        }
+
         // generate random pressures
         for (int i = 0; i < totalCells; i++)
         {
             data.Pressures[i] = 0.0f;//rng.NextFloat();
+        }
+
+        // generate random colors
+        for (int i = 0; i < totalCells; i++)
+        {
+            data.colors[i] = new Vector3(rng.NextFloat(), rng.NextFloat(), rng.NextFloat());
         }
         
         return data;
