@@ -7,15 +7,13 @@ public class Initializer : MonoBehaviour
     public struct SpawnData
     {
         public int[] cellTypes;
-        public float[] vrVelocities;
-        public float[] hrVelocities;
+        public Vector2[] velocities;
         public float[] Pressures;
 
         public SpawnData(int numCells)
         {
             cellTypes = new int[numCells];
-            vrVelocities = new float[numCells];
-            hrVelocities = new float[numCells];
+            velocities = new Vector2[numCells];
             Pressures = new float[numCells];
         }
     }
@@ -43,14 +41,13 @@ public class Initializer : MonoBehaviour
         var rng = new Unity.Mathematics.Random(42);
         for (int i = 0; i < totalCells; i++)
         {
-            data.vrVelocities[i] = rng.NextFloat() - 0.5f;
-            data.hrVelocities[i] = rng.NextFloat() - 0.5f;
+            data.velocities[i] = 0.2f * new Vector2(rng.NextFloat() - 0.5f, rng.NextFloat() - 0.5f);
         }
 
         // generate random pressures
         for (int i = 0; i < totalCells; i++)
         {
-            data.Pressures[i] = rng.NextFloat();
+            data.Pressures[i] = 0.0f;//rng.NextFloat();
         }
         
         return data;

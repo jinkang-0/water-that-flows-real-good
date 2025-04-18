@@ -18,10 +18,9 @@ public class Display2D : MonoBehaviour
     public void Init(Simulation sim)
     {
         material = new Material(shader);
-        material.SetBuffer("vrVelocities", sim.vrVelocityBuffer);
-        material.SetBuffer("hrVelocities", sim.hrVelocityBuffer);
         material.SetBuffer("cellTypes", sim.cellTypeBuffer);
-        material.SetBuffer("Pressures", sim.PressureBuffer);
+        material.SetBuffer("velocities", sim.velocitiesBuffer.buffer_read);
+        material.SetBuffer("pressures", sim.pressuresBuffer.buffer_read);
 
         argsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);

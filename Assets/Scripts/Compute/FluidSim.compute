@@ -1,224 +1,225 @@
-#pragma kernel ExternalForces
-#pragma kernel DivergenceA
-#pragma kernel DivergenceB
-#pragma kernel DampenVelocities
-#pragma kernel Pressure
-#pragma kernel UpdateCellTypes
-#pragma kernel ApplyVelocities
-#pragma kernel ApplyPressure
+#pragma kernel user_input
+#pragma kernel advect;
+#pragma kernel jacobi_diffuse;
+#pragma kernel projection_divergence;
+#pragma kernel gradient_subtraction;
 
-static const int NumThreads = 64;
+// based off of GPU Gems: Chapter 38. Fast Fluid Dynamics Simulation on the GPU
+// https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu
+
+// `ThreadTileSize * ThreadTileSize` threads per work group
+static const int THREAD_TILE_SIZE = 32;
 
 // buffers
-RWStructuredBuffer<int> cellTypes;
-RWStructuredBuffer<float> vrVelocities;
-RWStructuredBuffer<float> vrVelocitiesOut;
-RWStructuredBuffer<float> hrVelocities;
-RWStructuredBuffer<float> hrVelocitiesOut;
-RWStructuredBuffer<float> Pressures;
-RWStructuredBuffer<float> PressuresOut;
+RWStructuredBuffer<uint> inout_cell_types;
+RWStructuredBuffer<float2> in_velocities;
+RWStructuredBuffer<float2> out_velocities;
+RWStructuredBuffer<float> in_pressures;
+RWStructuredBuffer<float> out_pressures;
 
 // settings
 const float gravity;
-const float deltaTime;
-const float2 boundsSize;
-const float2 cellSize;
-const int numRows;
-const int numCols;
-const uint totalCells;
+const float delta_time;
+const float2 bounds_size;
+// size of each grid cell
+const float2 cell_size;
+// grid dimensions
+const uint2 size;
 
-const float2 interactionInputPoint;
-const int interactionInputType;
-const float interactionInputRadius;
+const float2 interaction_pos;
+const int interaction_type;
+const float interaction_radius;
 
-int idToCol(uint id)
+// "screen" space:
+//      simulation is centered at `(0.0, 0.0)` and has size `cell_size*size`
+float2 grid_to_screen(uint2 id)
 {
-    return id % numCols;
+    float2 bound_corner = -bounds_size / 2;
+    return bound_corner + (float2(id) + 0.5) * cell_size;
+}
+// index space:
+//      the index of the cell
+//      (the bottom left cell maps to `(0, 0)`)
+// grid space:
+//      `index + 0.5`
+//      cell positions are centered
+//      (the bottom left cell maps to `(0.5, 0.5)`)
+// "sim" space:
+//      grid space scaled by `cell_size`
+//      bottom left corner at `(0,0)` and has size `cell_size*size`
+//      cell positions are centered
+//      (the bottom left cell maps to `(cell_size/2, cell_size/2)`)
+float2 index_to_sim(uint2 id)
+{
+    return (float2(id) + 0.5) * cell_size;
+}
+// returns grid position as floating point
+float2 sim_to_gridf(float2 p)
+{
+    return p / cell_size;
 }
 
-int idToRow(uint id)
+bool valid_index(uint2 id)
 {
-    return id / numCols;
+    return !(id.x >= size.x || id.y >= size.y);
+}
+bool svalid_index(int2 id)
+{
+    return id.x >= 0 && id.x < int(size.x) && id.y >= 0 && id.y < int(size.y);
 }
 
-uint posToId(uint2 pos)
+uint idx(uint2 id)
 {
-    return pos.y * numCols + pos.x;
+    return id.y * size.x + id.x;
 }
 
-float2 gridPosition(uint id)
-{
-    const int col = idToCol(id);
-    const int row = idToRow(id);
-    const float2 boundCorner = -boundsSize / 2;
-    return boundCorner + (float2(col, row) + 0.5) * cellSize;
-}
-
-[numthreads(NumThreads, 1, 1)]
-void ExternalForces(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    //vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
-    hrVelocitiesOut[id.x] = hrVelocities[id.x] + gravity * deltaTime;
-}
-
-bool isDrain(int cell_type)
-{
-    return cell_type == 3;
-}
-bool isSolid(int cell_type)
+bool is_air(int cell_type)
 {
     return cell_type == 1;
 }
-bool isWater(int cell_type)
+bool is_water(int cell_type)
 {
     return cell_type == 0;
 }
-
-bool checkerboard(uint2 pos, bool which)
+bool is_solid(int cell_type)
 {
-    return which != ((pos.x + pos.y % 2) % 2 == 0);
+    return cell_type == 3;
 }
 
-float getVelH(uint2 pos)
+[numthreads(THREAD_TILE_SIZE, THREAD_TILE_SIZE, 1)]
+void advect(uint3 id : SV_DispatchThreadID)
 {
-    return hrVelocities[posToId(pos)];
-}
-float getVelV(uint2 pos)
-{
-    return vrVelocities[posToId(pos)];
-}
-float setVelH(uint2 pos, float vel)
-{
-    hrVelocitiesOut[posToId(pos)] = vel;
-}
-float setVelV(uint2 pos, float vel)
-{
-    vrVelocitiesOut[posToId(pos)] = vel;
+    if (!valid_index(id.xy)) return;
+    if (!is_water(inout_cell_types[idx(id.xy)])) return;
+
+    float2 this_velocity = in_velocities[idx(id.xy)];
+
+    float2 cell_position = index_to_sim(id.xy);
+    // position of cell(s) to draw from
+    float2 other_position = cell_position - delta_time * this_velocity;
+    // floor grid position
+    float2 other_p_grid = sim_to_gridf(other_position);
+    int2 other_p_index = int2(other_p_grid);
+    // get other cell velocities surrounding `other_position`
+    int2 i00 = other_p_index;
+    int2 i10 = other_p_index + int2(1, 0);
+    int2 i01 = other_p_index + int2(0, 1);
+    int2 i11 = other_p_index + int2(1, 1);
+    // if the cell is invalid or the cell is not water, use a velocity of 0
+    float2 v00 = svalid_index(i00) ? ( is_water(inout_cell_types[idx(uint2(i00))]) ? in_velocities[idx(uint2(i00))] : float2(0.0, 0.0) ) : float2(0.0, 0.0);
+    float2 v10 = svalid_index(i00) ? ( is_water(inout_cell_types[idx(uint2(i10))]) ? in_velocities[idx(uint2(i10))] : float2(0.0, 0.0) ) : float2(0.0, 0.0);
+    float2 v01 = svalid_index(i00) ? ( is_water(inout_cell_types[idx(uint2(i01))]) ? in_velocities[idx(uint2(i01))] : float2(0.0, 0.0) ) : float2(0.0, 0.0);
+    float2 v11 = svalid_index(i00) ? ( is_water(inout_cell_types[idx(uint2(i11))]) ? in_velocities[idx(uint2(i11))] : float2(0.0, 0.0) ) : float2(0.0, 0.0);
+    // bilinear interpolation of cell velocities near `other_position`
+    float2 t = other_p_grid-0.5 - float2(other_p_index);
+    float2 v0_ = lerp(v00, v01, t.x);
+    float2 v1_ = lerp(v10, v11, t.x);
+    float2 v = lerp(v0_, v1_, t.y);
+
+    // set the advected velocity for this cell
+    out_velocities[idx(id.xy)] = v;
 }
 
-void div_update_checker(uint3 id, bool which)
+[numthreads(THREAD_TILE_SIZE, THREAD_TILE_SIZE, 1)]
+void jacobi_diffuse(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= totalCells) return;
+    if (!valid_index(id.xy)) return;
+    if (!is_water(inout_cell_types[idx(id.xy)])) return;
 
-    // only run if there is fluid in this cell
-    if (isWater(cellTypes[id.x]))
+    float x = (1.0 / cell_size.x);
+    float alpha = 1.0 * x * x / delta_time;
+    float beta_inv = 1.0 / (4.0 + alpha);
+
+    // this velocity
+    float2 v = in_velocities[idx(id.xy)];
+
+    // nearby velocities
+    int2 i_u = id.xy + int2( 0,  1);
+    int2 i_d = id.xy + int2( 0, -1);
+    int2 i_l = id.xy + int2(-1,  0);
+    int2 i_r = id.xy + int2( 1,  0);
+    // if the cell is invalid or the cell is not water, use a velocity opposite to this velocity
+    float2 v_u = svalid_index(i_u) ? ( is_water(inout_cell_types[idx(uint2(i_u))]) ? in_velocities[idx(uint2(i_u))] : -v ) : -v;
+    float2 v_d = svalid_index(i_d) ? ( is_water(inout_cell_types[idx(uint2(i_d))]) ? in_velocities[idx(uint2(i_d))] : -v ) : -v;
+    float2 v_l = svalid_index(i_l) ? ( is_water(inout_cell_types[idx(uint2(i_l))]) ? in_velocities[idx(uint2(i_l))] : -v ) : -v;
+    float2 v_r = svalid_index(i_r) ? ( is_water(inout_cell_types[idx(uint2(i_r))]) ? in_velocities[idx(uint2(i_r))] : -v ) : -v;
+
+
+    //out_velocities[idx(id.xy)] = 0.01 * 0.25 * (v_u + v_d + v_l + v_r) + 0.99 * v;
+    out_velocities[idx(id.xy)] = (v_u + v_d + v_l + v_r + alpha * v) * beta_inv;
+}
+
+[numthreads(THREAD_TILE_SIZE, THREAD_TILE_SIZE, 1)]
+void projection_divergence(uint3 id : SV_DispatchThreadID)
+{
+    if (!valid_index(id.xy)) return;
+    if (!is_water(inout_cell_types[idx(id.xy)])) return;
+
+    // this velocity
+    float2 v = in_velocities[idx(id.xy)];
+
+    // surrounding velocities
+    int2 i_u = id.xy + int2( 0,  1);
+    int2 i_d = id.xy + int2( 0, -1);
+    int2 i_l = id.xy + int2(-1,  0);
+    int2 i_r = id.xy + int2( 1,  0);
+    // if the cell is invalid or the cell is not water, use a velocity opposite to this velocity
+    float2 v_u = svalid_index(i_u) ? ( is_water(inout_cell_types[idx(uint2(i_u))]) ? in_velocities[idx(uint2(i_u))] : -v ) : -v;
+    float2 v_d = svalid_index(i_d) ? ( is_water(inout_cell_types[idx(uint2(i_d))]) ? in_velocities[idx(uint2(i_d))] : -v ) : -v;
+    float2 v_l = svalid_index(i_l) ? ( is_water(inout_cell_types[idx(uint2(i_l))]) ? in_velocities[idx(uint2(i_l))] : -v ) : -v;
+    float2 v_r = svalid_index(i_r) ? ( is_water(inout_cell_types[idx(uint2(i_r))]) ? in_velocities[idx(uint2(i_r))] : -v ) : -v;
+
+    // find divergence ( / pressure?)
+    out_pressures[idx(id.xy)] = 0.5 * (cell_size.x * (v_r.x - v_l.x) + cell_size.y * (v_u.y - v_d.y));
+}
+[numthreads(THREAD_TILE_SIZE, THREAD_TILE_SIZE, 1)]
+void gradient_subtraction(uint3 id : SV_DispatchThreadID)
+{
+    if (!valid_index(id.xy)) return;
+    if (!is_water(inout_cell_types[idx(id.xy)])) return;
+
+    // this pressure
+    float p = in_pressures[idx(id.xy)];
+
+    // surrounding pressures
+    int2 i_u = id.xy + int2( 0,  1);
+    int2 i_d = id.xy + int2( 0, -1);
+    int2 i_l = id.xy + int2(-1,  0);
+    int2 i_r = id.xy + int2( 1,  0);
+    // if the cell is invalid or the cell is not water, use the pressure of this cell
+    float p_u = svalid_index(i_u) ? ( is_water(inout_cell_types[idx(uint2(i_u))]) ? in_pressures[idx(uint2(i_u))] : p ) : p;
+    float p_d = svalid_index(i_d) ? ( is_water(inout_cell_types[idx(uint2(i_d))]) ? in_pressures[idx(uint2(i_d))] : p ) : p;
+    float p_l = svalid_index(i_l) ? ( is_water(inout_cell_types[idx(uint2(i_l))]) ? in_pressures[idx(uint2(i_l))] : p ) : p;
+    float p_r = svalid_index(i_r) ? ( is_water(inout_cell_types[idx(uint2(i_r))]) ? in_pressures[idx(uint2(i_r))] : p ) : p;
+
+    // this velocity
+    float2 v = in_velocities[idx(id.xy)];
+
+    // subtract gradient
+    out_velocities[idx(id.xy)] = v - (0.5 * cell_size * float2(p_r - p_l, p_u - p_d));
+}
+
+[numthreads(THREAD_TILE_SIZE, THREAD_TILE_SIZE, 1)]
+void user_input(uint3 id : SV_DispatchThreadID)
+{
+    if (!valid_index(id.xy)) return;
+
+    out_velocities[idx(id.xy)] = in_velocities[idx(id.xy)];
+
+    if (id.x > 0 && id.x < size.x-1 && id.y > 0 && id.y < size.y-1)
     {
-        uint2 pos = uint2(idToCol(id.x), idToRow(id.x));
-        // split work by checkerboard pattern
-        if (checkerboard(pos, which))
+        if (distance(grid_to_screen(id.xy), interaction_pos) <= interaction_radius)
         {
-            // velocities of adjacent cells
-            float vel_left  = hrVelocities[posToId(pos + uint2( 0, -1))];
-            float vel_right = hrVelocities[posToId(pos + uint2( 0,  0))];
-            float vel_down  = vrVelocities[posToId(pos + uint2(-1,  0))];
-            float vel_up    = vrVelocities[posToId(pos + uint2( 0,  0))];
 
-            // solidity of adjacent cells
-            bool sol_left   = isSolid(cellTypes[posToId(pos + uint2( 0, -1))]);
-            bool sol_right  = isSolid(cellTypes[posToId(pos + uint2( 0,  1))]);
-            bool sol_down   = isSolid(cellTypes[posToId(pos + uint2(-1,  0))]);
-            bool sol_up     = isSolid(cellTypes[posToId(pos + uint2( 1,  0))]);
-
-            // only look at velocity of non-solid cells
-            vel_left    *= sol_left  ? 0.0 : 1.0;
-            vel_right   *= sol_right ? 0.0 : 1.0;
-            vel_up      *= sol_up    ? 0.0 : 1.0;
-            vel_down    *= sol_down  ? 0.0 : 1.0;
-
-            // divergence out of this cell
-            float divergence = 1.9 * (-vel_left + vel_right - vel_down + vel_up);
-            
-            float n = float((sol_left ? 0.0 : 1.0) + (sol_right ? 0.0 : 1.0) + (sol_down ? 0.0 : 1.0) + (sol_up ? 0.0 : 1.0));
-
-            float div_effect = divergence / n;
-
-            // update the pressure
-            if (n != 0.0)
+            if (interaction_type == 1)
             {
-                PressuresOut[id.x] = Pressures[id.x] + 1.9 * divergence;
+                //inout_cell_types[idx(id.xy)] = 0;
+                out_velocities[idx(id.xy)] = in_velocities[idx(id.xy)] + float2(0.1, 0.0);
             }
-
-            // make divergence 0
-            hrVelocitiesOut[posToId(pos + uint2( 0, -1))] = sol_left  ? 0.0 : vel_left + div_effect;
-            hrVelocitiesOut[posToId(pos + uint2( 0,  0))] = sol_right ? 0.0 : vel_right - div_effect;
-            vrVelocitiesOut[posToId(pos + uint2(-1,  0))] = sol_down  ? 0.0 : vel_down + div_effect;
-            vrVelocitiesOut[posToId(pos + uint2( 0,  0))] = sol_up    ? 0.0 : vel_up - div_effect;
+            else if (interaction_type == 2)
+            {
+                inout_cell_types[idx(id.xy)] = 1;
+            }
         }
     }
-}
-
-// first checkerboard
-[numthreads(NumThreads, 1, 1)]
-void DivergenceA(uint3 id : SV_DispatchThreadID)
-{
-    div_update_checker(id, false);
-}
-
-// second checkerboard
-[numthreads(NumThreads, 1, 1)]
-void DivergenceB(uint3 id : SV_DispatchThreadID)
-{
-    div_update_checker(id, true);
-}
-
-[numthreads(NumThreads, 1, 1)]
-void DampenVelocities(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    hrVelocitiesOut[id.x] = hrVelocities[id.x] * 0.9;
-    vrVelocitiesOut[id.x] = vrVelocities[id.x] * 0.9;
-}
-
-// `Pressure` kernel is currently unused
-[numthreads(NumThreads, 1, 1)]
-void Pressure(uint3 id : SV_DispatchThreadID)
-{
-    PressuresOut[id.x] = Pressures[id.x];
-}
-
-[numthreads(NumThreads, 1, 1)]
-void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    if (distance(gridPosition(id.x), interactionInputPoint) < interactionInputRadius)
-    {
-        if (interactionInputType == 1)
-        {
-            //hrVelocitiesOut[id.x] = hrVelocities[id.x] * 0.9;
-            vrVelocitiesOut[id.x] = vrVelocities[id.x] + 0.1;
-            //cellTypes[id.x] = 1;
-        }
-    }
-    if (cellTypes[id.x] == 1 && interactionInputType == 2)
-    {
-        // check if grid is within interaction radius
-        const float2 pos = gridPosition(id.x);
-        const float2 offset = interactionInputPoint - pos;
-        const float sqrDist = dot(offset, offset);
-        if (sqrDist < interactionInputRadius * interactionInputRadius)
-        {
-            cellTypes[id.x] = 0;
-        }
-    }
-}
-
-[numthreads(NumThreads, 1, 1)]
-void ApplyVelocities(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    vrVelocities[id.x] = vrVelocitiesOut[id.x];
-    hrVelocities[id.x] = hrVelocitiesOut[id.x];
-}
-
-[numthreads(NumThreads, 1, 1)]
-void ApplyPressure(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    Pressures[id.x] = PressuresOut[id.x];
 }

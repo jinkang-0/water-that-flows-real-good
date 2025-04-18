@@ -19,9 +19,8 @@ Shader "Custom/Grid2D"
             #include "UnityCG.cginc"
 
             StructuredBuffer<int> cellTypes;
-            StructuredBuffer<float> vrVelocities;
-            StructuredBuffer<float> hrVelocities;
-            StructuredBuffer<float> Pressures;
+            StructuredBuffer<float2> velocities;
+            StructuredBuffer<float> pressures;
 
             float scale;
             int numRows;
@@ -58,8 +57,12 @@ Shader "Custom/Grid2D"
                 o.color = float4(0,0,0,0);
                 o.size = objectSize.xy;
 
-                // displat the velocities and pressure by default
-                o.color = float4(vrVelocities[instanceID], hrVelocities[instanceID], Pressures[instanceID], 1);
+                // display the velocities and pressure by default
+
+                o.color = float4(velocities[instanceID], pressures[instanceID], 1.0);
+                //o.color = float4(pressures[instanceID], pressures[instanceID], pressures[instanceID], 1.0);
+
+                //o.color = float4(vrVelocities[instanceID], hrVelocities[instanceID], Pressures[instanceID], 1);
                 //o.color = float4(Pressures[instanceID], Pressures[instanceID], Pressures[instanceID], 1);
                 // override with terrain color
                 if (cellTypes[instanceID] == 1)

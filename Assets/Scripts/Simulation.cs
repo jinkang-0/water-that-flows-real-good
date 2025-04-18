@@ -25,28 +25,19 @@ public class Simulation : MonoBehaviour
     // inferred variables
     public Vector2 cellSize { get; private set; }
     private int totalCells;
-    private int numVelocities;
     private Initializer.SpawnData spawnData;
 
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
-    public ComputeBuffer vrVelocityBuffer { get; private set; }
-    public ComputeBuffer hrVelocityBuffer { get; private set; }
-    private ComputeBuffer hrVelocityBuffer2;
-    private ComputeBuffer vrVelocityBuffer2;
-
-    public ComputeBuffer PressureBuffer;
-    private ComputeBuffer PressureBuffer2;
+    public DoubleBufferHelper<Vector2> velocitiesBuffer { get; private set; }
+    public DoubleBufferHelper<float> pressuresBuffer { get; private set; }
 
     // kernel IDs
-    private int externalForcesKernel = 0;
-    private int divergenceKernelA = 0;
-    private int divergenceKernelB = 0;
-    private int dampenVelocitiesKernel = 0;
-    private int pressureKernel = 0;
-    private int updateCellsKernel = 0;
-    private int applyVelocitiesKernel = 0;
-    private int applyPressureKernel = 0;
+    private int userInputKernel = 0;
+    private int advectKernel = 0;
+    private int diffuseKernel = 0;
+    private int divergenceKernel = 0;
+    private int gradientKernel = 0;
 
     // state
     private bool isPaused;
@@ -54,14 +45,11 @@ public class Simulation : MonoBehaviour
     
     private void Start()
     {
-        externalForcesKernel =  compute.FindKernel("ExternalForces");
-        divergenceKernelA =     compute.FindKernel("DivergenceA");
-        divergenceKernelB =     compute.FindKernel("DivergenceB");
-        dampenVelocitiesKernel = compute.FindKernel("DampenVelocities");
-        pressureKernel =        compute.FindKernel("Pressure");
-        updateCellsKernel =     compute.FindKernel("UpdateCellTypes");
-        applyVelocitiesKernel = compute.FindKernel("ApplyVelocities");
-        applyPressureKernel = compute.FindKernel("ApplyPressure");
+        userInputKernel = compute.FindKernel("user_input");
+        advectKernel = compute.FindKernel("advect");
+        diffuseKernel = compute.FindKernel("jacobi_diffuse");
+        divergenceKernel = compute.FindKernel("projection_divergence");
+        gradientKernel = compute.FindKernel("gradient_subtraction");
 
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
     
@@ -74,32 +62,17 @@ public class Simulation : MonoBehaviour
         totalCells = numCells.x * numCells.y;
 
         // create buffers
+        //cellTypeBuffer = new DoubleBufferHelper<uint>(totalCells);
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
-        vrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        vrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        PressureBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        PressureBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        velocitiesBuffer = new DoubleBufferHelper<Vector2>(totalCells);
+        pressuresBuffer = new DoubleBufferHelper<float>(totalCells);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells);
         SetInitialBufferData();
         
-        // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes",                                 divergenceKernelA, divergenceKernelB,                         updateCellsKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel, pressureKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel,                 applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities",      externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel, pressureKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut",  externalForcesKernel, divergenceKernelA, divergenceKernelB, dampenVelocitiesKernel, updateCellsKernel,                 applyVelocitiesKernel);
-
-        ComputeHelper.SetBuffer(compute, PressureBuffer, "Pressures", divergenceKernelA, divergenceKernelB, pressureKernel, applyPressureKernel);
-        ComputeHelper.SetBuffer(compute, PressureBuffer2, "PressuresOut", divergenceKernelA, divergenceKernelB, pressureKernel, applyPressureKernel);
-        
-        compute.SetInt("totalCells", totalCells);
-        compute.SetInt("numRows", numCells.y);
-        compute.SetInt("numCols", numCells.x);
-        compute.SetVector("cellSize", cellSize);
+        compute.SetInts("size", new int[]{numCells.x, numCells.y});
+        compute.SetVector("cell_size", cellSize);
         
         // initialize display
         display.Init(this);
@@ -151,33 +124,53 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
+        // update state according to user input
+        compute.SetBuffer(userInputKernel, "inout_cell_types", cellTypeBuffer);
+        compute.SetBuffer(userInputKernel, "in_velocities", velocitiesBuffer.buffer_read);
+        compute.SetBuffer(userInputKernel, "out_velocities", velocitiesBuffer.buffer_write);
+        ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: userInputKernel);
+        velocitiesBuffer.swap();
 
-        // first checkerboard
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: divergenceKernelA);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
+        // advect
+        compute.SetBuffer(advectKernel, "inout_cell_types", cellTypeBuffer);
+        compute.SetBuffer(advectKernel, "in_velocities", velocitiesBuffer.buffer_read);
+        compute.SetBuffer(advectKernel, "out_velocities", velocitiesBuffer.buffer_write);
+        ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: advectKernel);
+        velocitiesBuffer.swap();
 
-        // second checkerboard
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: divergenceKernelB);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
-
-        // dampen velocities
-        //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: dampenVelocitiesKernel);
-        //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
-
-        //ComputeHelper.Dispatch(compute, totalCells, kernelIndex: pressureKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyPressureKernel);
-
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
+        // diffuse
+        // run jacobi iterations to find solution
+        
+        for (int i = 0; i < 80; ++i)
+        {
+            compute.SetBuffer(diffuseKernel, "inout_cell_types", cellTypeBuffer);
+            compute.SetBuffer(diffuseKernel, "in_velocities", velocitiesBuffer.buffer_read);
+            compute.SetBuffer(diffuseKernel, "out_velocities", velocitiesBuffer.buffer_write);
+            ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: diffuseKernel);
+            velocitiesBuffer.swap();
+        }
+        
+        
+        compute.SetBuffer(divergenceKernel, "inout_cell_types", cellTypeBuffer);
+        compute.SetBuffer(divergenceKernel, "in_velocities", velocitiesBuffer.buffer_read);
+        compute.SetBuffer(divergenceKernel, "out_pressures", pressuresBuffer.buffer_write);
+        ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: divergenceKernel);
+        pressuresBuffer.swap();
+        
+        compute.SetBuffer(gradientKernel, "inout_cell_types", cellTypeBuffer);
+        compute.SetBuffer(gradientKernel, "in_velocities", velocitiesBuffer.buffer_read);
+        compute.SetBuffer(gradientKernel, "out_velocities", velocitiesBuffer.buffer_write);
+        compute.SetBuffer(gradientKernel, "in_pressures", pressuresBuffer.buffer_read);
+        ComputeHelper.Dispatch(compute, numCells.x, numCells.y, kernelIndex: gradientKernel);
+        velocitiesBuffer.swap();
     }
 
     // update compute shader settings
     private void UpdateSettings(float deltaTime)
     {
-        compute.SetFloat("deltaTime", deltaTime);
+        compute.SetFloat("delta_time", deltaTime);
         compute.SetFloat("gravity", gravity);
-        compute.SetVector("boundsSize", boundsSize);
+        compute.SetVector("bounds_size", boundsSize);
         
         // mouse interactions
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
@@ -193,40 +186,33 @@ public class Simulation : MonoBehaviour
             interactionType = 2;
         }
         
-        compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetInt("interactionInputType", interactionType);
-        compute.SetFloat("interactionInputRadius", interactionRadius);
+        compute.SetVector("interaction_pos", mousePos);
+        compute.SetInt("interaction_type", interactionType);
+        compute.SetFloat("interaction_radius", interactionRadius);
     }
 
     // reset buffer data to spawner data
     private void SetInitialBufferData()
     {
         // get initial cell types
-        int[] initialCellTypes = new int[spawnData.cellTypes.Length];
-        System.Array.Copy(spawnData.cellTypes, initialCellTypes, spawnData.cellTypes.Length);
+        //int[] initialCellTypes = new int[spawnData.cellTypes.Length];
+        //System.Array.Copy(spawnData.cellTypes, initialCellTypes, spawnData.cellTypes.Length);
         
-        // get initial velocities
-        float[] initialVrVelocities = new float[spawnData.vrVelocities.Length];
-        float[] initialVrVelocities2 = new float[spawnData.vrVelocities.Length];
-        float[] initialHrVelocities = new float[spawnData.hrVelocities.Length];
-        float[] initialHrVelocities2 = new float[spawnData.hrVelocities.Length];
-        float[] initialPressures = new float[spawnData.Pressures.Length];
-        float[] initialPressures2 = new float[spawnData.Pressures.Length];
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities2, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities, spawnData.hrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities2, spawnData.hrVelocities.Length);
-        System.Array.Copy(spawnData.Pressures, initialPressures, spawnData.Pressures.Length);
-        System.Array.Copy(spawnData.Pressures, initialPressures2, spawnData.Pressures.Length);
+        //// get initial velocities
+        //Vector2[] initialVrVelocities = new Vector2[spawnData.velocities.Length];
+        //float[] initialPressures = new float[spawnData.Pressures.Length];
+        //float[] initialPressures2 = new float[spawnData.Pressures.Length];
+        //System.Array.Copy(spawnData.vrVelocities, initialVrVelocities, spawnData.vrVelocities.Length);
+        //System.Array.Copy(spawnData.vrVelocities, initialVrVelocities2, spawnData.vrVelocities.Length);
+        //System.Array.Copy(spawnData.hrVelocities, initialHrVelocities, spawnData.hrVelocities.Length);
+        //System.Array.Copy(spawnData.hrVelocities, initialHrVelocities2, spawnData.hrVelocities.Length);
+        //System.Array.Copy(spawnData.Pressures, initialPressures, spawnData.Pressures.Length);
+        //System.Array.Copy(spawnData.Pressures, initialPressures2, spawnData.Pressures.Length);
         
         // update buffers
-        cellTypeBuffer.SetData(initialCellTypes);
-        vrVelocityBuffer.SetData(initialVrVelocities);
-        vrVelocityBuffer2.SetData(initialVrVelocities2);
-        hrVelocityBuffer.SetData(initialHrVelocities);
-        hrVelocityBuffer2.SetData(initialHrVelocities2);
-        PressureBuffer.SetData(initialPressures);
-        PressureBuffer2.SetData(initialPressures2);
+        cellTypeBuffer.SetData(spawnData.cellTypes);
+        velocitiesBuffer.buffer_read.SetData(spawnData.velocities);
+        pressuresBuffer.buffer_read.SetData(spawnData.Pressures);
     }
 
     private void HandleInput()
@@ -252,11 +238,6 @@ public class Simulation : MonoBehaviour
             isPaused = true;
             SetInitialBufferData();
         }
-    }
-
-    private void OnDestroy()
-    {
-        ComputeHelper.Release(cellTypeBuffer, vrVelocityBuffer, vrVelocityBuffer2, hrVelocityBuffer, hrVelocityBuffer2, PressureBuffer, PressureBuffer2);
     }
 
     private void OnDrawGizmos()
@@ -287,5 +268,12 @@ public class Simulation : MonoBehaviour
             Gizmos.color = isPull ? Color.green : Color.red;
             Gizmos.DrawWireSphere(mousePos, interactionRadius);
         }
+    }
+
+    private void OnDestroy()
+    {
+        cellTypeBuffer.Release();
+        velocitiesBuffer.destroy();
+        pressuresBuffer.destroy();
     }
 }
