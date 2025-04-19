@@ -1,0 +1,21 @@
+footer {
+  width: 100%;
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+}
+
+footer > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+footer img {
+  width: 100px;
+}
+
+footer p {
+  color: var(--fg10);
+}
