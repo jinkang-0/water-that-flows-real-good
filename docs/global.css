@@ -42,7 +42,10 @@ main {
 
   margin: 5rem 0;
   padding: 64px;
+
+  /* comment out the line below to print page */
   padding-bottom: 12px;
+
   border-radius: 16px;
 }
 
