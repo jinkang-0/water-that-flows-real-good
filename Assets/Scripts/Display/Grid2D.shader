@@ -64,7 +64,7 @@ Shader "Custom/Grid2D"
                 else if (cellTypes[instanceID] == 2)
                     o.color = stoneColor;
                 else
-                    o.color = float4(0, 0, 255, densities[instanceID]);
+                    o.color = float4(0, 0, 255, min(max(1 / densities[instanceID], 0), 1));
 
                 return o;
             }

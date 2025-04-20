@@ -130,8 +130,35 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
+        hrVelocityBuffer.Swap();
+        vrVelocityBuffer.Swap();
+
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
+        hrVelocityBuffer.Swap();
+        vrVelocityBuffer.Swap();
+
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectVelocityKernel);
+        hrVelocityBuffer.Swap();
+        vrVelocityBuffer.Swap();
+
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectFluidKernel);
+        densityBuffer.Swap();
+
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
     }
 
