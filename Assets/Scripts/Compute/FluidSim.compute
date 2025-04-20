@@ -1,46 +1,144 @@
 #pragma kernel ExternalForces
 #pragma kernel UpdateCellTypes
-#pragma kernel ApplyVelocities
+#pragma kernel Projection
+#pragma kernel AdvectVelocity
+#pragma kernel AdvectDensity
 
 static const int NumThreads = 64;
 
 // buffers
+// ASSUME:
+// - vertical velocity tracks velocity above cell
+// - horizontal velocity tracks velocity left of cell
+// => bottom row won't have velocity below it, rightmost col won't have velocity right of it
+//    but that doesn't matter - just have to check for bounds and adjust accordingly
+//    current behavior: treat it as a bounding box
 RWStructuredBuffer<int> cellTypes;
 RWStructuredBuffer<float> vrVelocities;
 RWStructuredBuffer<float> vrVelocitiesOut;
 RWStructuredBuffer<float> hrVelocities;
 RWStructuredBuffer<float> hrVelocitiesOut;
+RWStructuredBuffer<float> densities;
+RWStructuredBuffer<float> densitiesOut;
 
 // settings
 const float gravity;
 const float deltaTime;
 const float2 boundsSize;
 const float2 cellSize;
-const int numRows;
-const int numCols;
+const int2 size;
 const uint totalCells;
 
 const float2 interactionInputPoint;
 const int interactionInputType;
 const float interactionInputRadius;
 
+const float overRelaxation = 1.9;
+
+//
+// helpers to work with coordinates
+//
 int idToCol(uint id)
 {
-    return id % numCols;
+    return id % size.x;
 }
 
 int idToRow(uint id)
 {
-    return id / numCols;
+    return id / size.x;
 }
 
-float2 gridPosition(uint id)
+// uint idx(uint x, uint y)
+// {
+//     return y * size.x + x;
+// }
+
+float2 gridPosition(const uint col, const uint row)
 {
-    const int col = idToCol(id);
-    const int row = idToRow(id);
     const float2 boundCorner = -boundsSize / 2;
     return boundCorner + (float2(col, row) + 0.5) * cellSize;
 }
+
+float2 clampPosition(const float2 p)
+{
+    const float2 lowerLeft = -boundsSize / 2;
+    const float2 upperRight = lowerLeft + boundsSize;
+    return max(min(p, upperRight), lowerLeft);
+}
+
+//
+// fluid sim functions
+//
+
+// sample the velocity at an arbitrary location
+// field=0: sample horizontal velocity
+// field=1: sample vertical velocity
+// field=2: sample density
+float2 sampleField(float2 p, const uint field)
+{
+    // clamp coords to bounds
+    p = clampPosition(p);
+
+    float dx = 0;
+    float dy = 0;
+    RWStructuredBuffer<float> buf;
+
+    // determine which buffer to sample from
+    switch (field)
+    {
+        default:
+        case 0:
+            buf = hrVelocities;
+            dy = cellSize.y * 0.5;
+            break;
+        case 1:
+            buf = vrVelocities;
+            dx = cellSize.x * 0.5;
+            break;
+        case 2:
+            buf = densities;
+            dx = cellSize.x * 0.5;
+            dy = cellSize.y * 0.5;
+            break;
+    }
+
+    const uint x0 = min(floor(p.x - dx) / cellSize.x, size.x-1);
+    const uint x1 = min(x0 + 1, size.x-1);
+    const uint y0 = min(floor(p.y - dy) / cellSize.y, size.y-1);
+    const uint y1 = min(y0 + 1, size.y-1);
+    const float tx = ((p.x - dx) - x0*cellSize.x) / cellSize.x;
+    const float ty = ((p.y - dy) - y0*cellSize.y) / cellSize.y;
+    const float sx = 1 - tx;
+    const float sy = 1 - ty;
+
+    return sx*sy*buf[y0*size.x + x0] + tx*sy*buf[y0*size.x + x1] + tx*ty*buf[y1*size.x + x1] + sx*ty*buf[y1*size.x + x0];
+}
+
+// WARNING: this assumes the relevant cells exist
+// access: current cell, left cell, below cell, left and below cell
+float averageVrVelocity(const uint id)
+{
+    const float v0 = vrVelocities[id];
+    const float v1 = vrVelocities[id - 1];
+    const float v2 = vrVelocities[id + size.x];
+    const float v3 = vrVelocities[id + size.x - 1];
+    return (v0 + v1 + v2 + v3) / 4;
+}
+
+// WARNING: this assumes the relevant cells exist
+// access: current cell, right cell, below cell, below and right cell
+float averageHrVelocity(const uint id)
+{
+    const float v0 = hrVelocities[id];
+    const float v1 = hrVelocities[id + 1];
+    const float v2 = hrVelocities[id + size.x];
+    const float v3 = hrVelocities[id + size.x + 1];
+    return (v0 + v1 + v2 + v3) / 4;
+}
+
+//
+// kernels
+//
 
 [numthreads(NumThreads, 1, 1)]
 void ExternalForces(uint3 id : SV_DispatchThreadID)
@@ -58,7 +156,9 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
     if (cellTypes[id.x] == 1 && interactionInputType == 2)
     {
         // check if grid is within interaction radius
-        const float2 pos = gridPosition(id.x);
+        const uint col = idToCol(id.x);
+        const uint row = idToRow(id.x);
+        const float2 pos = gridPosition(col, row);
         const float2 offset = interactionInputPoint - pos;
         const float sqrDist = dot(offset, offset);
         if (sqrDist < interactionInputRadius * interactionInputRadius)
@@ -69,10 +169,135 @@ void UpdateCellTypes(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(NumThreads, 1, 1)]
-void ApplyVelocities(uint3 id : SV_DispatchThreadID)
+void Projection(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
+    if (cellTypes[id.x] != 0) return;
 
-    vrVelocities[id.x] = vrVelocitiesOut[id.x];
-    hrVelocities[id.x] = hrVelocitiesOut[id.x];
+    const int col = idToCol(id.x);
+    const int row = idToRow(id.x);
+
+    float d = 0;
+    int s = 0;
+
+    // check velocity to the right (vel from right cell)
+    if (col < size.x - 1)
+    {
+        d += hrVelocities[id.x + 1];
+        s++;
+    }
+
+    // check velocity to the left (vel from this cell)
+    if (col > 0)
+    {
+        d -= hrVelocities[id.x];
+        s++;
+    }
+
+    // check velocity above (vel from this cell)
+    if (row > 0)
+    {
+        d += vrVelocities[id.x];
+        s++;
+    }
+    
+    // check velocity below (vel from cell below)
+    if (row < size.y - 1)
+    {
+        d -= vrVelocities[id.x + size.x];
+        s++;
+    }
+
+    d *= overRelaxation / s;
+
+    // update velocity to the right (vel from right cell)
+    if (col < size.x - 1)
+        hrVelocitiesOut[id.x + 1] -= d;
+
+    // update velocity to the left (vel from this cell)
+    if (col > 0)
+        hrVelocitiesOut[id.x] += d;
+
+    // update velocity above (vel from this cell)
+    if (row > 0)
+        vrVelocitiesOut[id.x] -= d;
+
+    // update velocity below (vel from cell below)
+    if (row < size.y - 1)
+        vrVelocitiesOut[id.x + size.x] += d;
+}
+
+[numthreads(NumThreads, 1, 1)]
+void AdvectVelocity(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+    if (cellTypes[id.x] != 0) return;
+
+    const int col = idToCol(id.x);
+    const int row = idToRow(id.x);
+    
+    // advect horizontal velocity if cell to the left is not blocked
+    // note: in staggered velocity grid, velocity between wall and fluid cell should not be considered
+    if (col > 0 && cellTypes[id.x-1] == 0)
+    {
+        // get particle position at left cell boundary
+        float2 pos = gridPosition(col, row);
+        pos.y -= cellSize.y / 2;
+
+        // get current velocity
+        const float vx = hrVelocities[id.x];
+        const float vy = averageVrVelocity(id.x);
+
+        // travel back in time
+        pos.x -= deltaTime * vx;
+        pos.y -= deltaTime * vy;
+
+        // sample velocity at the position this "particle" would have had
+        hrVelocitiesOut[id.x] = sampleField(pos, 0);
+    }
+
+    // advect vertical velocity if cell above is not blocked
+    if (row > 0 && cellTypes[id.x-size.x] == 0)
+    {
+        // get particle position at left cell velocity
+        float2 pos = gridPosition(col, row);
+        pos.x += cellSize.x / 2;
+
+        // get current velocity
+        const float vx = averageHrVelocity(id.x);
+        const float vy = vrVelocities[id.x];
+
+        // travel back in time
+        pos.x -= deltaTime * vx;
+        pos.y -= deltaTime * vy;
+
+        // sample velocity at the position this particle would have had
+        vrVelocitiesOut[id.x] = sampleField(pos, 1);
+    }
+}
+
+[numthreads(NumThreads, 1, 1)]
+void AdvectDensity(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+    if (cellTypes[id.x] != 0) return;
+
+    // check bounds
+    const int col = idToCol(id.x);
+    const int row = idToRow(id.x);
+    if (col == 0 || row == 0 || col == size.x - 1 || row == size.y - 1) return;
+
+    // particle position is center of cell
+    float2 pos = gridPosition(col, row) + cellSize / 2;
+    
+    // get velocity of particle at center of cell
+    const float vx = (hrVelocities[id.x] + hrVelocities[id.x + 1]) / 2;
+    const float vy = (vrVelocities[id.x] + vrVelocities[id.x + size.x]) / 2;
+
+    // travel back in time
+    pos.x -= deltaTime * vx;
+    pos.y -= deltaTime * vy;
+
+    // sample density from previous position
+    densitiesOut[id.x] = sampleField(pos, 2);
 }

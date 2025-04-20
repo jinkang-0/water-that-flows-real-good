@@ -158,8 +158,8 @@ MonoBehaviour:
   iterationsPerFrame: 3
   gravity: -0.098
   boundsSize: {x: 16, y: 9}
-  numCells: {x: 64, y: 36}
-  interactionRadius: 3
+  numCells: {x: 480, y: 270}
+  interactionRadius: 0.25
   interactionStrength: 1
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
   initializer: {fileID: 479015541}
@@ -194,7 +194,8 @@ MonoBehaviour:
   scale: 1
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   shader: {fileID: 4800000, guid: c3d7ba0d1a704334195523c97636e4fc, type: 3}
-  terrain: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 0}
+  terrain: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 1}
+  stone: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
 --- !u!114 &479015541
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -207,6 +208,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 335de13571c0b3e4fa9337087516b978, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  terrainTexture: {fileID: 2800000, guid: ebcf7833ab2d82f458a3426dee5d61b3, type: 3}
+  waterTexture: {fileID: 2800000, guid: 8356f306416667144918b0aa96af5ce8, type: 3}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0

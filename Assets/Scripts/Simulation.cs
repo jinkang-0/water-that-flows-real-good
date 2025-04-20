@@ -9,7 +9,7 @@ public class Simulation : MonoBehaviour
     public float timeScale = 1;
     public bool fixedTimeStep;
     public int iterationsPerFrame;
-    public float gravity;
+    public float gravity = -9.81f;
     public Vector2 boundsSize;
     public Vector2Int numCells;
 
@@ -30,15 +30,16 @@ public class Simulation : MonoBehaviour
 
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
-    public ComputeBuffer vrVelocityBuffer { get; private set; }
-    public ComputeBuffer hrVelocityBuffer { get; private set; }
-    private ComputeBuffer hrVelocityBuffer2;
-    private ComputeBuffer vrVelocityBuffer2;
+    public DoubleBuffer<float> densityBuffer { get; private set; }
+    public DoubleBuffer<float> vrVelocityBuffer { get; private set; }
+    public DoubleBuffer<float> hrVelocityBuffer { get; private set; }
 
     // kernel IDs
     private const int externalForcesKernel = 0;
     private const int updateCellsKernel = 1;
-    private const int applyVelocitiesKernel = 2;
+    private const int projectionKernel = 2;
+    private const int advectVelocityKernel = 3;
+    private const int advectFluidKernel = 4;
 
     // state
     private bool isPaused;
@@ -58,25 +59,25 @@ public class Simulation : MonoBehaviour
 
         // create buffers
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
-        vrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        vrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        densityBuffer = new DoubleBuffer<float>(totalCells);
+        vrVelocityBuffer = new DoubleBuffer<float>(totalCells);
+        hrVelocityBuffer = new DoubleBuffer<float>(totalCells);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells);
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", updateCellsKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", updateCellsKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
         
         compute.SetInt("totalCells", totalCells);
-        compute.SetInt("numRows", numCells.y);
-        compute.SetInt("numCols", numCells.x);
+        compute.SetInts("size", new int[]{numCells.x, numCells.y});
         compute.SetVector("cellSize", cellSize);
         
         // initialize display
@@ -130,7 +131,7 @@ public class Simulation : MonoBehaviour
     private void RunSimulationStep()
     {
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
     }
 
@@ -163,26 +164,11 @@ public class Simulation : MonoBehaviour
     // reset buffer data to spawner data
     private void SetInitialBufferData()
     {
-        // get initial cell types
-        int[] initialCellTypes = new int[spawnData.cellTypes.Length];
-        System.Array.Copy(spawnData.cellTypes, initialCellTypes, spawnData.cellTypes.Length);
-        
-        // get initial velocities
-        float[] initialVrVelocities = new float[spawnData.vrVelocities.Length];
-        float[] initialVrVelocities2 = new float[spawnData.vrVelocities.Length];
-        float[] initialHrVelocities = new float[spawnData.hrVelocities.Length];
-        float[] initialHrVelocities2 = new float[spawnData.hrVelocities.Length];
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities2, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities, spawnData.hrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities2, spawnData.hrVelocities.Length);
-        
         // update buffers
-        cellTypeBuffer.SetData(initialCellTypes);
-        vrVelocityBuffer.SetData(initialVrVelocities);
-        vrVelocityBuffer2.SetData(initialVrVelocities2);
-        hrVelocityBuffer.SetData(initialHrVelocities);
-        hrVelocityBuffer2.SetData(initialHrVelocities2);
+        cellTypeBuffer.SetData(spawnData.cellTypes);
+        vrVelocityBuffer.bufferRead.SetData(spawnData.vrVelocities);
+        hrVelocityBuffer.bufferRead.SetData(spawnData.hrVelocities);
+        densityBuffer.bufferRead.SetData(spawnData.densities);
     }
 
     private void HandleInput()
@@ -212,7 +198,10 @@ public class Simulation : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(cellTypeBuffer, vrVelocityBuffer, vrVelocityBuffer2, hrVelocityBuffer, hrVelocityBuffer2);
+        ComputeHelper.Release(cellTypeBuffer);
+        vrVelocityBuffer.Destroy();
+        hrVelocityBuffer.Destroy();
+        densityBuffer.Destroy();
     }
 
     private void OnDrawGizmos()

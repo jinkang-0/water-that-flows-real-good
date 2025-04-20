@@ -6,6 +6,7 @@ public class Display2D : MonoBehaviour
     public Mesh mesh;
     public Shader shader;
     public Color terrain;
+    public Color stone;
 
     private Material material;
     private ComputeBuffer argsBuffer;
@@ -18,9 +19,10 @@ public class Display2D : MonoBehaviour
     public void Init(Simulation sim)
     {
         material = new Material(shader);
-        material.SetBuffer("vrVelocities", sim.vrVelocityBuffer);
-        material.SetBuffer("hrVelocities", sim.hrVelocityBuffer);
+        material.SetBuffer("vrVelocities", sim.vrVelocityBuffer.bufferRead);
+        material.SetBuffer("hrVelocities", sim.hrVelocityBuffer.bufferRead);
         material.SetBuffer("cellTypes", sim.cellTypeBuffer);
+        material.SetBuffer("densities", sim.densityBuffer.bufferRead);
 
         argsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
@@ -42,6 +44,7 @@ public class Display2D : MonoBehaviour
         needsUpdate = false;
         material.SetFloat("scale", scale);
         material.SetColor("terrainColor", terrain);
+        material.SetColor("stoneColor", stone);
         material.SetInt("numCols", simulation.numCells.x);
         material.SetInt("numRows", simulation.numCells.y);
         material.SetVector("boundsSize", simulation.boundsSize);

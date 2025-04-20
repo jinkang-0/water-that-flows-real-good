@@ -21,6 +21,7 @@ Shader "Custom/Grid2D"
             StructuredBuffer<int> cellTypes;
             StructuredBuffer<float> vrVelocities;
             StructuredBuffer<float> hrVelocities;
+            StructuredBuffer<float> densities;
 
             float scale;
             int numRows;
@@ -28,6 +29,7 @@ Shader "Custom/Grid2D"
             float2 cellSize;
             float2 boundsSize;
             float4 terrainColor;
+            float4 stoneColor;
             
             float4 color;
             SamplerState linear_clamp_sampler;
@@ -36,7 +38,7 @@ Shader "Custom/Grid2D"
             {
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
-                float3 color : TEXCOORD1;
+                float4 color : TEXCOORD1;
                 float2 size : TEXCOORD2;
             };
 
@@ -59,6 +61,10 @@ Shader "Custom/Grid2D"
 
                 if (cellTypes[instanceID] == 1)
                     o.color = terrainColor;
+                else if (cellTypes[instanceID] == 2)
+                    o.color = stoneColor;
+                else
+                    o.color = float4(0, 0, 255, densities[instanceID]);
 
                 return o;
             }
@@ -69,11 +75,12 @@ Shader "Custom/Grid2D"
                 const float2 edgeDist = abs((i.uv.xy - 0.5) * 2);
                 const float insideX = step(edgeDist.x, i.size.x);
                 const float insideY = step(edgeDist.y, i.size.y);
-                const float alpha = insideX * insideY;
+                const float mask = insideX * insideY;
                 
-                const float3 color = i.color;
+                float4 color = i.color;
+                color.a *= mask;
                 
-                return float4(color, alpha);
+                return color;
             }
             
             ENDCG
