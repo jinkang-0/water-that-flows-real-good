@@ -36,10 +36,11 @@ public class Simulation : MonoBehaviour
 
     // kernel IDs
     private const int externalForcesKernel = 0;
-    private const int updateCellsKernel = 1;
+    private const int userInputKernel = 1;
     private const int projectionKernel = 2;
     private const int advectVelocityKernel = 3;
     private const int advectFluidKernel = 4;
+    private const int extrapolateKernel = 5;
 
     // state
     private bool isPaused;
@@ -68,20 +69,24 @@ public class Simulation : MonoBehaviour
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", updateCellsKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
-        
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, userInputKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
+        // ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
+
+        // set compute shader constants
         compute.SetInt("totalCells", totalCells);
         compute.SetInts("size", new int[]{numCells.x, numCells.y});
         compute.SetVector("cellSize", cellSize);
+        compute.SetFloat("interactionInputStrength", interactionStrength);
         
         // initialize display
         display.Init(this);
+
+        isPaused = true;
     }
 
     private void FixedUpdate()
@@ -130,36 +135,60 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // apply external force (gravity)
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", externalForcesKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        hrVelocityBuffer.Swap();
         vrVelocityBuffer.Swap();
 
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
-        hrVelocityBuffer.Swap();
+        // handle mouse interactions
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", userInputKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", userInputKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", userInputKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", userInputKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
         vrVelocityBuffer.Swap();
+        hrVelocityBuffer.Swap();
 
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
+        // solve incompressibility
+        int numIterations = numCells.y;
+        for (int i = 0; i < numIterations; i++)
+        {
+            ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", projectionKernel);
+            ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", projectionKernel);
+            ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", projectionKernel);
+            ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", projectionKernel);
+            ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
+            hrVelocityBuffer.Swap();
+            vrVelocityBuffer.Swap();
+        }
+        
+        // extrapolate velocities to bounds
+        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", extrapolateKernel);
+        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", extrapolateKernel);
+        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", extrapolateKernel);
+        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", extrapolateKernel);
+        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: extrapolateKernel);
+        // hrVelocityBuffer.Swap();
+        // vrVelocityBuffer.Swap();
+
+        // advect velocity
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", advectVelocityKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", advectVelocityKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectVelocityKernel);
         hrVelocityBuffer.Swap();
         vrVelocityBuffer.Swap();
-
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
+        
+        // advect density
+        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", advectFluidKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectFluidKernel);
         densityBuffer.Swap();
-
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
     }
 
     // update compute shader settings
@@ -194,8 +223,11 @@ public class Simulation : MonoBehaviour
         // update buffers
         cellTypeBuffer.SetData(spawnData.cellTypes);
         vrVelocityBuffer.bufferRead.SetData(spawnData.vrVelocities);
+        vrVelocityBuffer.bufferWrite.SetData(spawnData.vrVelocities);
         hrVelocityBuffer.bufferRead.SetData(spawnData.hrVelocities);
+        hrVelocityBuffer.bufferWrite.SetData(spawnData.hrVelocities);
         densityBuffer.bufferRead.SetData(spawnData.densities);
+        densityBuffer.bufferWrite.SetData(spawnData.densities);
     }
 
     private void HandleInput()

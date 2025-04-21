@@ -130,8 +130,8 @@ public class Initializer : MonoBehaviour
         // var rng = new Unity.Mathematics.Random(42);
         // for (int i = 0; i < totalCells; i++)
         // {
-        //     data.vrVelocities[i] = rng.NextFloat() - 0.5f;
-        //     data.hrVelocities[i] = rng.NextFloat() - 0.5f;
+        //     data.vrVelocities[i] = 0;
+        //     data.hrVelocities[i] = -10;
         // }
 
         return data;

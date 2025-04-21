@@ -11,7 +11,6 @@ public class Display2D : MonoBehaviour
     private Material material;
     private ComputeBuffer argsBuffer;
     private Bounds bounds;
-    private Texture2D gradientTexture;
     private bool needsUpdate;
 
     private Simulation simulation;
@@ -19,10 +18,7 @@ public class Display2D : MonoBehaviour
     public void Init(Simulation sim)
     {
         material = new Material(shader);
-        material.SetBuffer("vrVelocities", sim.vrVelocityBuffer.bufferRead);
-        material.SetBuffer("hrVelocities", sim.hrVelocityBuffer.bufferRead);
         material.SetBuffer("cellTypes", sim.cellTypeBuffer);
-        material.SetBuffer("densities", sim.densityBuffer.bufferRead);
 
         argsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
@@ -34,6 +30,11 @@ public class Display2D : MonoBehaviour
         if (shader == null) return;
 
         UpdateSettings();
+        
+        material.SetBuffer("vrVelocities", simulation.vrVelocityBuffer.bufferRead);
+        material.SetBuffer("hrVelocities", simulation.hrVelocityBuffer.bufferRead);
+        material.SetBuffer("densities", simulation.densityBuffer.bufferRead);
+
         Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer);
     }
 

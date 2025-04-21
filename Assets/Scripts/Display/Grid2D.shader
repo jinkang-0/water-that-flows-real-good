@@ -42,6 +42,29 @@ Shader "Custom/Grid2D"
                 float2 size : TEXCOORD2;
             };
 
+            // formula from Wikipedia: https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
+            float3 HSV2RGB(float3 hsv)
+            {
+                const float h = hsv.x;
+                const float s = hsv.y;
+                const float v = hsv.z;
+                
+                const float c = v * s;
+                const float x = c * (1 - abs(fmod(h * 6.0, 2.0) - 1));
+                const float m = v - c;
+
+                float3 rgb;
+
+                if (0 <= h && h < 1.0/6.0) rgb = float3(c, x, 0);
+                else if (1.0/6.0 <= h && h < 2.0/6.0) rgb = float3(x, c, 0);
+                else if (2.0/6.0 <= h && h < 3.0/6.0) rgb = float3(0, c, x);
+                else if (3.0/6.0 <= h && h < 4.0/6.0) rgb = float3(0, x, c);
+                else if (4.0/6.0 <= h && h < 5.0/6.0) rgb = float3(x, 0, c);
+                else rgb = float3(c, 0, x);
+
+                return rgb + m;
+            }
+
             v2f vert(const appdata_full v, const uint instanceID : SV_InstanceID)
             {
                 const int row = instanceID / numCols;
@@ -64,8 +87,21 @@ Shader "Custom/Grid2D"
                 else if (cellTypes[instanceID] == 2)
                     o.color = stoneColor;
                 else
-                    o.color = float4(0, 0, 255, min(max(1 / densities[instanceID], 0), 1));
+                {
+                    // o.color = float4(0, 0, 255, min(max(densities[instanceID], 0), 1));
 
+                    // map velocity to color
+                    const float2 vel = float2(hrVelocities[instanceID], vrVelocities[instanceID]);
+                    const float angle = atan2(vel.y, vel.x);
+                    const float mag = length(vel);
+                    const float hue = (angle + UNITY_PI) / (2 * UNITY_PI); // normalize
+                    const float magMax = 10;
+                    const float normMag = saturate(mag / magMax);
+                    const float3 hsv = float3(hue, 1, normMag);
+                    const float3 rgb = HSV2RGB(hsv);
+                    o.color = float4(rgb, 1.0f);
+                }
+                
                 return o;
             }
 
