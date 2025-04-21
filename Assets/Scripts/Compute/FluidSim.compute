@@ -228,14 +228,14 @@ void Projection(uint3 id : SV_DispatchThreadID)
     if (s == 0) return;
     
     // compute divergence
-    float d = hrVelocities[id.x+1] - hrVelocities[id.x] + vrVelocities[id.x] - vrVelocities[id.x + size.x];
+    float d = hrVelocities[id.x + 1] - hrVelocities[id.x] + vrVelocities[id.x + size.x] - vrVelocities[id.x]; // fixed equation to match this video www.youtube.com/watch?v=iKAVRgIrUOU&t=465s
     d *= overRelaxation / s;
 
-    // solve incompressibility
-    hrVelocitiesOut[id.x] = hrVelocities[id.x] + d * sLeft;
-    hrVelocitiesOut[id.x+1] = hrVelocities[id.x+1] - d * sRight;
-    vrVelocitiesOut[id.x] = vrVelocities[id.x] + d * sUp;
-    vrVelocitiesOut[id.x+size.x] = vrVelocities[id.x+size.x] - d * sDown;
+    // solve incompressibility 
+    hrVelocitiesOut[id.x] += d * sLeft;
+    hrVelocitiesOut[id.x + 1] -= d * sRight;
+    vrVelocitiesOut[id.x] += d * sUp;
+    vrVelocitiesOut[id.x + size.x] -= d * sDown;
 }
 
 [numthreads(NumThreads, 1, 1)]
