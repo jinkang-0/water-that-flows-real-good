@@ -1,15 +1,20 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class Display2D : MonoBehaviour
 {
     public float scale;
     public Mesh mesh;
-    public Shader shader;
-    public Color terrain;
-    public Color stone;
+    public Shader gridShader;
+    public Shader particleShader;
+    public Color terrainColor;
+    public Color stoneColor;
+    public Color waterColor;
 
-    private Material material;
-    private ComputeBuffer argsBuffer;
+    private Material gridMaterial;
+    private Material particleMaterial;
+    private ComputeBuffer gridArgsBuffer;
+    private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
 
@@ -17,25 +22,30 @@ public class Display2D : MonoBehaviour
 
     public void Init(Simulation sim)
     {
-        material = new Material(shader);
-        material.SetBuffer("cellTypes", sim.cellTypeBuffer);
+        gridMaterial = new Material(gridShader);
+        gridMaterial.SetBuffer("cellTypes", sim.cellTypeBuffer);
 
-        argsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
+        particleMaterial = new Material(particleShader);
+
+        gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
+        particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
     }
 
     private void LateUpdate()
     {
-        if (shader == null) return;
+        if (gridShader == null) return;
 
         UpdateSettings();
         
-        material.SetBuffer("vrVelocities", simulation.vrVelocityBuffer.bufferRead);
-        material.SetBuffer("hrVelocities", simulation.hrVelocityBuffer.bufferRead);
-        material.SetBuffer("densities", simulation.densityBuffer.bufferRead);
+        gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
+        
+        particleMaterial.SetBuffer("particleVelocities", simulation.particleVelocityBuffer.bufferRead);
+        particleMaterial.SetBuffer("positions", simulation.positionBuffer.bufferRead);
 
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer);
+        Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
+        Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
     }
 
     private void UpdateSettings()
@@ -43,13 +53,18 @@ public class Display2D : MonoBehaviour
         if (!needsUpdate) return;
 
         needsUpdate = false;
-        material.SetFloat("scale", scale);
-        material.SetColor("terrainColor", terrain);
-        material.SetColor("stoneColor", stone);
-        material.SetInt("numCols", simulation.numCells.x);
-        material.SetInt("numRows", simulation.numCells.y);
-        material.SetVector("boundsSize", simulation.boundsSize);
-        material.SetVector("cellSize", simulation.cellSize);
+        gridMaterial.SetFloat("scale", scale);
+        gridMaterial.SetColor("terrainColor", terrainColor);
+        gridMaterial.SetColor("stoneColor", stoneColor);
+        gridMaterial.SetInt("numCols", simulation.numCells.x);
+        gridMaterial.SetInt("numRows", simulation.numCells.y);
+        gridMaterial.SetVector("boundsSize", simulation.boundsSize);
+        gridMaterial.SetVector("cellSize", simulation.cellSize);
+        
+        particleMaterial.SetColor("waterColor", waterColor);
+        particleMaterial.SetFloat("scale", scale);
+        particleMaterial.SetVector("boundsSize", simulation.boundsSize);
+        particleMaterial.SetVector("cellSize", simulation.cellSize);
     }
 
     private void OnValidate()
@@ -59,6 +74,7 @@ public class Display2D : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(argsBuffer);
+        ComputeHelper.Release(gridArgsBuffer);
+        ComputeHelper.Release(particleArgsBuffer);
     }
 }

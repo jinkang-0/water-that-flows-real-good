@@ -12,6 +12,7 @@ public class Simulation : MonoBehaviour
     public float gravity = -9.81f;
     public Vector2 boundsSize;
     public Vector2Int numCells;
+    public int numParticles;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
@@ -30,17 +31,14 @@ public class Simulation : MonoBehaviour
 
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
-    public DoubleBuffer<float> densityBuffer { get; private set; }
-    public DoubleBuffer<float> vrVelocityBuffer { get; private set; }
-    public DoubleBuffer<float> hrVelocityBuffer { get; private set; }
+    public DoubleBuffer<float2> cellVelocityBuffer { get; private set; }
+    public DoubleBuffer<float2> positionBuffer { get; private set; }
+    public DoubleBuffer<float2> particleVelocityBuffer { get; private set; }
 
     // kernel IDs
     private const int externalForcesKernel = 0;
     private const int userInputKernel = 1;
     private const int projectionKernel = 2;
-    private const int advectVelocityKernel = 3;
-    private const int advectFluidKernel = 4;
-    private const int extrapolateKernel = 5;
 
     // state
     private bool isPaused;
@@ -60,25 +58,20 @@ public class Simulation : MonoBehaviour
 
         // create buffers
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
-        densityBuffer = new DoubleBuffer<float>(totalCells);
-        vrVelocityBuffer = new DoubleBuffer<float>(totalCells);
-        hrVelocityBuffer = new DoubleBuffer<float>(totalCells);
+        cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
+        positionBuffer = new DoubleBuffer<float2>(numParticles);
+        particleVelocityBuffer = new DoubleBuffer<float2>(numParticles);
         
         // initialize buffer data
-        spawnData = initializer.GetSpawnData(numCells);
+        spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, userInputKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", externalForcesKernel, projectionKernel, advectFluidKernel, advectVelocityKernel);
-        // ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", projectionKernel, advectFluidKernel);
-        // ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", projectionKernel, advectFluidKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, userInputKernel, projectionKernel);
 
         // set compute shader constants
         compute.SetInt("totalCells", totalCells);
+        compute.SetInt("numParticles", numParticles);
         compute.SetInts("size", new int[]{numCells.x, numCells.y});
         compute.SetVector("cellSize", cellSize);
         compute.SetFloat("interactionInputStrength", interactionStrength);
@@ -136,59 +129,27 @@ public class Simulation : MonoBehaviour
     private void RunSimulationStep()
     {
         // apply external force (gravity)
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", externalForcesKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", externalForcesKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", externalForcesKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", externalForcesKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", externalForcesKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        vrVelocityBuffer.Swap();
+        cellVelocityBuffer.Swap();
 
         // handle mouse interactions
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", userInputKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", userInputKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", userInputKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", userInputKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-        vrVelocityBuffer.Swap();
-        hrVelocityBuffer.Swap();
-
+        cellVelocityBuffer.Swap();
+        
         // solve incompressibility
         int numIterations = numCells.y;
         for (int i = 0; i < numIterations; i++)
         {
-            ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", projectionKernel);
-            ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", projectionKernel);
-            ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", projectionKernel);
-            ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", projectionKernel);
+            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
+            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
             ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
-            hrVelocityBuffer.Swap();
-            vrVelocityBuffer.Swap();
+            cellVelocityBuffer.Swap();
         }
         
-        // extrapolate velocities to bounds
-        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", extrapolateKernel);
-        // ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", extrapolateKernel);
-        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", extrapolateKernel);
-        // ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", extrapolateKernel);
-        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: extrapolateKernel);
-        // hrVelocityBuffer.Swap();
-        // vrVelocityBuffer.Swap();
-
-        // advect velocity
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferWrite, "vrVelocitiesOut", advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", advectVelocityKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferWrite, "hrVelocitiesOut", advectVelocityKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectVelocityKernel);
-        hrVelocityBuffer.Swap();
-        vrVelocityBuffer.Swap();
-        
-        // advect density
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer.bufferRead, "vrVelocities", advectFluidKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer.bufferRead, "hrVelocities", advectFluidKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferRead, "densities", advectFluidKernel);
-        ComputeHelper.SetBuffer(compute, densityBuffer.bufferWrite, "densitiesOut", advectFluidKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: advectFluidKernel);
-        densityBuffer.Swap();
     }
 
     // update compute shader settings
@@ -222,12 +183,12 @@ public class Simulation : MonoBehaviour
     {
         // update buffers
         cellTypeBuffer.SetData(spawnData.cellTypes);
-        vrVelocityBuffer.bufferRead.SetData(spawnData.vrVelocities);
-        vrVelocityBuffer.bufferWrite.SetData(spawnData.vrVelocities);
-        hrVelocityBuffer.bufferRead.SetData(spawnData.hrVelocities);
-        hrVelocityBuffer.bufferWrite.SetData(spawnData.hrVelocities);
-        densityBuffer.bufferRead.SetData(spawnData.densities);
-        densityBuffer.bufferWrite.SetData(spawnData.densities);
+        cellVelocityBuffer.bufferRead.SetData(spawnData.cellVelocities);
+        cellVelocityBuffer.bufferWrite.SetData(spawnData.cellVelocities);
+        particleVelocityBuffer.bufferRead.SetData(spawnData.particleVelocities);
+        particleVelocityBuffer.bufferWrite.SetData(spawnData.particleVelocities);
+        positionBuffer.bufferRead.SetData(spawnData.positions);
+        positionBuffer.bufferWrite.SetData(spawnData.positions);
     }
 
     private void HandleInput()
@@ -258,9 +219,9 @@ public class Simulation : MonoBehaviour
     private void OnDestroy()
     {
         ComputeHelper.Release(cellTypeBuffer);
-        vrVelocityBuffer.Destroy();
-        hrVelocityBuffer.Destroy();
-        densityBuffer.Destroy();
+        cellVelocityBuffer.Destroy();
+        positionBuffer.Destroy();
+        particleVelocityBuffer.Destroy();
     }
 
     private void OnDrawGizmos()

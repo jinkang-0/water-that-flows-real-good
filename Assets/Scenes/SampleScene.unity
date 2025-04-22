@@ -158,7 +158,8 @@ MonoBehaviour:
   iterationsPerFrame: 3
   gravity: 0
   boundsSize: {x: 16, y: 9}
-  numCells: {x: 32, y: 18}
+  numCells: {x: 128, y: 72}
+  numParticles: 100
   interactionRadius: 1
   interactionStrength: 10
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
@@ -193,9 +194,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   scale: 1
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
-  shader: {fileID: 4800000, guid: c3d7ba0d1a704334195523c97636e4fc, type: 3}
-  terrain: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 1}
-  stone: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
+  gridShader: {fileID: 4800000, guid: c3d7ba0d1a704334195523c97636e4fc, type: 3}
+  particleShader: {fileID: 4800000, guid: 956160b59825428b9e89abc0ad80aa34, type: 3}
+  terrainColor: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 1}
+  stoneColor: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
+  waterColor: {r: 0.43362755, g: 0.46104047, b: 0.7584905, a: 1}
 --- !u!114 &479015541
 MonoBehaviour:
   m_ObjectHideFlags: 0

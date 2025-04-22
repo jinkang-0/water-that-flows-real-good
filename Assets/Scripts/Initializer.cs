@@ -1,36 +1,36 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using UnityEngine.Serialization;
 
 public class Initializer : MonoBehaviour
 {
     public Texture2D terrainTexture;
     public Texture2D waterTexture;
 
-    // this is the thresold to check if color is black or not
+    // this is the threshold to check if color is black or not
     private const float threshold = 0.01f;
 
     public struct SpawnData
     {
         public int[] cellTypes;
-        public float[] densities;
-        public float[] vrVelocities;
-        public float[] hrVelocities;
+        public float2[] cellVelocities;
+        public float2[] positions;
+        public float2[] particleVelocities;
 
-        public SpawnData(int numCells)
+        public SpawnData(int numCells, int numParticles)
         {
             // note: in C#, arrays are initialized to default values (not garbage) (it's 0)
             cellTypes = new int[numCells];
-            densities = new float[numCells];
-            vrVelocities = new float[numCells];
-            hrVelocities = new float[numCells];
+            positions = new float2[numParticles];
+            cellVelocities = new float2[numCells];
+            particleVelocities = new float2[numParticles];
         }
     }
 
-    public SpawnData GetSpawnData(Vector2Int numCells)
+    public SpawnData GetSpawnData(Vector2Int gridSize, int numParticles)
     {
-        int totalCells = numCells.x * numCells.y;
-        var data = new SpawnData(totalCells);
+        int totalCells = gridSize.x * gridSize.y;
+        var data = new SpawnData(totalCells, numParticles);
         
         // generate terrain from texture
         if (terrainTexture != null && terrainTexture.isReadable)
@@ -38,15 +38,15 @@ public class Initializer : MonoBehaviour
             int textureWidth = terrainTexture.width;
             int textureHeight = terrainTexture.height;
 
-            for (int row = 0; row < numCells.y; row++)
+            for (int row = 0; row < gridSize.y; row++)
             {
-                for (int col = 0; col < numCells.x; col++)
+                for (int col = 0; col < gridSize.x; col++)
                 {
-                    int cellIndex = row * numCells.x + col;
+                    int cellIndex = row * gridSize.x + col;
 
                     // calculate where in the pixel space we are sampling from
-                    float normalizedX = (col + 0.5f) / numCells.x;
-                    float normalizedY = (row + 0.5f) / numCells.y;
+                    float normalizedX = (col + 0.5f) / gridSize.x;
+                    float normalizedY = (row + 0.5f) / gridSize.y;
 
                     int pixelX = Mathf.FloorToInt(normalizedX *textureWidth);
                     int pixelY = Mathf.FloorToInt(normalizedY * textureHeight);
@@ -77,16 +77,15 @@ public class Initializer : MonoBehaviour
         {
             int textureWidth = waterTexture.width;
             int textureHeight = waterTexture.height;
+            var waterCells = new List<int>();
 
-            for (int row = 0; row < numCells.y; row++)
+            for (int row = 0; row < gridSize.y; row++)
             {
-                for (int col = 0; col < numCells.x; col++)
+                for (int col = 0; col < gridSize.x; col++)
                 {
-                    int cellIndex = row * numCells.x + col;
-
                     // calculate where in the pixel space we are sampling from
-                    float normalizedX = (col + 0.5f) / numCells.x;
-                    float normalizedY = (row + 0.5f) / numCells.y;
+                    float normalizedX = (col + 0.5f) / gridSize.x;
+                    float normalizedY = (row + 0.5f) / gridSize.y;
 
                     int pixelX = Mathf.FloorToInt(normalizedX *textureWidth);
                     int pixelY = Mathf.FloorToInt(normalizedY * textureHeight);
@@ -101,9 +100,35 @@ public class Initializer : MonoBehaviour
                     // check if the pixel is filled
                     if (pixelColor.a > threshold)
                     {
+                        int cellIndex = row * gridSize.x + col;
                         data.cellTypes[cellIndex] = 0;
-                        data.densities[cellIndex] = 1;
+                        waterCells.Add(cellIndex);
                     }
+                }
+            }
+
+            var rng = new Unity.Mathematics.Random(42);
+            int particlesPerCell = numParticles / waterCells.Count;
+            int numExtras = numParticles % waterCells.Count;
+            int count = 0;
+            for (int i = 0; i < waterCells.Count; i++)
+            {
+                int idx = waterCells[i];
+                int row = idx / gridSize.x;
+                int col = idx % gridSize.x;
+                float2 gridPos = new float2(col, row);
+                
+                for (int j = 0; j < particlesPerCell; j++)
+                {
+                    data.positions[count] = gridPos + rng.NextFloat2();
+                    count++;
+                }
+
+                if (numExtras > 0)
+                {
+                    data.positions[count] = gridPos + rng.NextFloat2();
+                    count++;
+                    numExtras--;
                 }
             }
         }
@@ -111,19 +136,27 @@ public class Initializer : MonoBehaviour
         {
             // in case there is no texture set
             Debug.LogError(waterTexture == null ? "level layout is not assigned" : "Failed To Read Level Image.");
+            
+            // spawn particles in middle of screen
+            var rng = new Unity.Mathematics.Random(42);
+            float2 center = new float2(gridSize.x, gridSize.y) / 2;
+            for (int i = 0; i < numParticles; i++)
+            {
+                data.positions[i] = center + rng.NextFloat2() - 0.5f;
+            }
         }
         
         // generate bounding box
-        for (int i = 0; i < numCells.x; i++)
+        for (int i = 0; i < gridSize.x; i++)
         {
             data.cellTypes[i] = 2;
-            data.cellTypes[numCells.x * (numCells.y - 1) + i] = 2;
+            data.cellTypes[gridSize.x * (gridSize.y - 1) + i] = 2;
         }
 
-        for (int i = 1; i < numCells.y - 1; i++)
+        for (int i = 1; i < gridSize.y - 1; i++)
         {
-            data.cellTypes[numCells.x * i] = 2;
-            data.cellTypes[numCells.x * i + numCells.x - 1] = 2;
+            data.cellTypes[gridSize.x * i] = 2;
+            data.cellTypes[gridSize.x * i + gridSize.x - 1] = 2;
         }
 
         // generate random velocities

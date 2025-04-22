@@ -1,9 +1,6 @@
 #pragma kernel ExternalForces
 #pragma kernel UserInput
 #pragma kernel Projection
-#pragma kernel AdvectVelocity
-#pragma kernel AdvectDensity
-#pragma kernel Extrapolate
 
 static const int NumThreads = 64;
 
@@ -18,12 +15,12 @@ static const int NumThreads = 64;
 //     but that doesn't matter - just have to check for bounds and adjust accordingly
 //
 RWStructuredBuffer<int> cellTypes;
-RWStructuredBuffer<float> vrVelocities;
-RWStructuredBuffer<float> vrVelocitiesOut;
-RWStructuredBuffer<float> hrVelocities;
-RWStructuredBuffer<float> hrVelocitiesOut;
-RWStructuredBuffer<float> densities;
-RWStructuredBuffer<float> densitiesOut;
+RWStructuredBuffer<float2> cellVelocitiesIn;
+RWStructuredBuffer<float2> cellVelocitiesOut;
+RWStructuredBuffer<float2> particleVelocitiesIn;
+RWStructuredBuffer<float2> particleVelocitiesOut;
+RWStructuredBuffer<float2> positionsIn;
+RWStructuredBuffer<float2> positionsOut;
 
 // settings
 float gravity;
@@ -32,6 +29,7 @@ float2 boundsSize;
 float2 cellSize;
 int2 size;
 uint totalCells;
+uint numParticles;
 
 float2 interactionInputPoint;
 int interactionInputType;
@@ -80,72 +78,6 @@ float2 clampPosition(const float2 p)
 // fluid sim functions
 //
 
-// sample the velocity at an arbitrary location
-// field=0: sample horizontal velocity
-// field=1: sample vertical velocity
-// field=2: sample density
-float sampleField(float2 p, const uint field)
-{
-    float dx = 0;
-    float dy = 0;
-    RWStructuredBuffer<float> buf;
-
-    // determine which buffer to sample from
-    switch (field)
-    {
-        default:
-        case FIELD_HORIZONTAL_VELOCITY:
-            buf = hrVelocities;
-            dy = 0.5f;
-            break;
-        case FIELD_VERTICAL_VELOCITY:
-            buf = vrVelocities;
-            dx = 0.5f;
-            break;
-        case FIELD_DENSITY:
-            buf = densities;
-            dx = 0.5f;
-            dy = 0.5f;
-            break;
-    }
-
-    // compute neighboring coords to sample from
-    const uint x0 = min(floor(p.x - dx), size.x-1);
-    const uint x1 = min(x0 + 1, size.x-1);
-    const uint y0 = min(floor(p.y - dy), size.y-1);
-    const uint y1 = min(y0 + 1, size.y-1);
-
-    // compute values for interpolation
-    const float tx = p.x - dx - x0;
-    const float ty = p.y - dy - y0;
-    const float sx = 1 - tx;
-    const float sy = 1 - ty;
-
-    return sx*sy*buf[y0*size.x + x0] + tx*sy*buf[y0*size.x + x1] + tx*ty*buf[y1*size.x + x1] + sx*ty*buf[y1*size.x + x0];
-}
-
-// WARNING: this assumes the relevant cells exist
-// access: current cell, left cell, below cell, left and below cell
-float averageVrVelocity(const uint id)
-{
-    const float v0 = vrVelocities[id];
-    const float v1 = vrVelocities[id - 1];
-    const float v2 = vrVelocities[id + size.x];
-    const float v3 = vrVelocities[id + size.x - 1];
-    return (v0 + v1 + v2 + v3) / 4;
-}
-
-// WARNING: this assumes the relevant cells exist
-// access: current cell, right cell, above cell, above and right cell
-float averageHrVelocity(const uint id)
-{
-    const float v0 = hrVelocities[id];
-    const float v1 = hrVelocities[id + 1];
-    const float v2 = hrVelocities[id - size.x];
-    const float v3 = hrVelocities[id - size.x + 1];
-    return (v0 + v1 + v2 + v3) / 4;
-}
-
 //
 // kernels
 //
@@ -156,7 +88,7 @@ void ExternalForces(uint3 id : SV_DispatchThreadID)
     if (id.x >= totalCells) return;
 
     // copy values to ensure no data loss
-    vrVelocitiesOut[id.x] = vrVelocities[id.x];
+    cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x];
     
     // exit if cell is on border
     const int row = idToRow(id.x);
@@ -165,7 +97,7 @@ void ExternalForces(uint3 id : SV_DispatchThreadID)
     // apply gravity to velocity between empty cells
     if (cellTypes[id.x] == 0 && cellTypes[id.x - size.x] == 0)
     {
-        vrVelocitiesOut[id.x] = vrVelocities[id.x] + gravity * deltaTime;
+        cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x] + float2(0, gravity) * deltaTime;
     }
 }
 
@@ -175,8 +107,7 @@ void UserInput(uint3 id : SV_DispatchThreadID)
     if (id.x >= totalCells) return;
 
     // copy values to ensure no data loss
-    vrVelocitiesOut[id.x] = vrVelocities[id.x];
-    hrVelocitiesOut[id.x] = hrVelocities[id.x];
+    cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x];
     
     // exit if cell is on border
     const int row = idToRow(id.x);
@@ -199,8 +130,7 @@ void UserInput(uint3 id : SV_DispatchThreadID)
     {
         // const float dist = sqrt(sqrDst);
         // const float pullStrength = (dist / interactionInputRadius) * interactionInputStrength;
-        hrVelocitiesOut[id.x] = hrVelocities[id.x] - 0.1f;
-        vrVelocitiesOut[id.x] = vrVelocities[id.x] - 0.1f;
+        cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x] + 0.1f;
     }
 }
 
@@ -211,8 +141,7 @@ void Projection(uint3 id : SV_DispatchThreadID)
     if (cellTypes[id.x] != 0) return;
     
     // copy values to ensure no data loss
-    vrVelocitiesOut[id.x] = vrVelocities[id.x];
-    hrVelocitiesOut[id.x] = hrVelocities[id.x];
+    cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x];
 
     // exit if it is on a bound
     const int col = idToCol(id.x);
@@ -228,115 +157,12 @@ void Projection(uint3 id : SV_DispatchThreadID)
     if (s == 0) return;
     
     // compute divergence
-    float d = hrVelocities[id.x+1] - hrVelocities[id.x] + vrVelocities[id.x] - vrVelocities[id.x + size.x];
+    float d = cellVelocitiesIn[id.x+1].x - cellVelocitiesIn[id.x].x + cellVelocitiesIn[id.x].y - cellVelocitiesIn[id.x + size.x].y;
     d *= overRelaxation / s;
 
     // solve incompressibility
-    hrVelocitiesOut[id.x] = hrVelocities[id.x] + d * sLeft;
-    hrVelocitiesOut[id.x+1] = hrVelocities[id.x+1] - d * sRight;
-    vrVelocitiesOut[id.x] = vrVelocities[id.x] + d * sUp;
-    vrVelocitiesOut[id.x+size.x] = vrVelocities[id.x+size.x] - d * sDown;
-}
-
-[numthreads(NumThreads, 1, 1)]
-void AdvectVelocity(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-    if (cellTypes[id.x] != 0) return;
-    
-    // copy values to ensure no data loss
-    vrVelocitiesOut[id.x] = vrVelocities[id.x];
-    hrVelocitiesOut[id.x] = hrVelocities[id.x];
-
-    const int col = idToCol(id.x);
-    const int row = idToRow(id.x);
-    
-    // advect horizontal velocity if cell to the left is not blocked
-    // note: in staggered velocity grid, velocity between wall and fluid cell should not be considered
-    if (col > 0 && cellTypes[id.x-1] == 0 && row < size.y-1)
-    {
-        // get particle position at left cell boundary
-        float2 pos = float2(col, row + 0.5f);
-
-        // get current velocity
-        const float vx = hrVelocities[id.x];
-        const float vy = averageVrVelocity(id.x);
-
-        // travel back in time
-        pos.x -= deltaTime * vx;
-        pos.y -= deltaTime * vy;
-
-        // sample velocity at the position this "particle" would have had
-        hrVelocitiesOut[id.x] = sampleField(pos, FIELD_HORIZONTAL_VELOCITY);
-    }
-
-    // advect vertical velocity if cell above is not blocked
-    if (row > 0 && cellTypes[id.x-size.x] == 0 && col < size.x-1)
-    {
-        // get particle position at left cell velocity
-        float2 pos = float2(col + 0.5f, row);
-
-        // get current velocity
-        const float vx = averageHrVelocity(id.x);
-        const float vy = vrVelocities[id.x];
-
-        // travel back in time
-        pos.x -= deltaTime * vx;
-        pos.y -= deltaTime * vy;
-
-        // sample velocity at the position this particle would have had
-        vrVelocitiesOut[id.x] = sampleField(pos, FIELD_VERTICAL_VELOCITY);
-    }
-}
-
-[numthreads(NumThreads, 1, 1)]
-void AdvectDensity(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-    if (cellTypes[id.x] != 0) return;
-    
-    // copy values to ensure no data loss
-    densitiesOut[id.x] = densities[id.x];
-    
-    // check bounds
-    const int col = idToCol(id.x);
-    const int row = idToRow(id.x);
-    if (col == 0 || row == 0 || col == size.x - 1 || row == size.y - 1) return;
-
-    // particle position is center of cell
-    float2 pos = float2(col + 0.5f, row + 0.5f);
-    
-    // get velocity of particle at center of cell
-    const float vx = (hrVelocities[id.x] + hrVelocities[id.x + 1]) / 2;
-    const float vy = (vrVelocities[id.x] + vrVelocities[id.x + size.x]) / 2;
-
-    // travel back in time
-    pos.x -= deltaTime * vx;
-    pos.y -= deltaTime * vy;
-
-    // sample density from previous position
-    densitiesOut[id.x] = sampleField(pos, FIELD_DENSITY);
-}
-
-[numthreads(NumThreads, 1, 1)]
-void Extrapolate(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= totalCells) return;
-
-    // copy values to ensure no data loss
-    hrVelocitiesOut[id.x] = hrVelocities[id.x];
-    vrVelocitiesOut[id.x] = vrVelocities[id.x];
-    
-    const int row = idToRow(id.x);
-    const int col = idToCol(id.x);
-
-    if (row == 0)
-        vrVelocitiesOut[id.x] = vrVelocities[id.x + size.x];
-    else if (row == size.y - 1)
-        vrVelocitiesOut[id.x] = vrVelocities[id.x - size.x];
-
-    if (col == 0)
-        hrVelocitiesOut[id.x] = hrVelocities[id.x + 1];
-    else if (col == size.x - 1)
-        hrVelocitiesOut[id.x] = hrVelocities[id.x - 1];
+    cellVelocitiesOut[id.x].x = cellVelocitiesIn[id.x].x + d * sLeft;
+    cellVelocitiesOut[id.x+1].x = cellVelocitiesIn[id.x+1].x - d * sRight;
+    cellVelocitiesOut[id.x].y = cellVelocitiesIn[id.x].y + d * sUp;
+    cellVelocitiesOut[id.x+size.x].y = cellVelocitiesIn[id.x+size.x].y - d * sDown;
 }
