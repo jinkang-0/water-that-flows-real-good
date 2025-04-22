@@ -135,7 +135,10 @@ public class Initializer : MonoBehaviour
         else
         {
             // in case there is no texture set
-            Debug.LogError(waterTexture == null ? "level layout is not assigned" : "Failed To Read Level Image.");
+            if (waterTexture == null)
+                Debug.Log("no water layout assigned, spawning water at the center");
+            else
+                Debug.LogError("Failed To Read Level Image.");
             
             // spawn particles in middle of screen
             var rng = new Unity.Mathematics.Random(42);

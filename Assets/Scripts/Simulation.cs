@@ -13,6 +13,7 @@ public class Simulation : MonoBehaviour
     public Vector2 boundsSize;
     public Vector2Int numCells;
     public int numParticles;
+    public float particleRadius;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
@@ -32,11 +33,11 @@ public class Simulation : MonoBehaviour
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
     public DoubleBuffer<float2> cellVelocityBuffer { get; private set; }
-    public DoubleBuffer<float2> positionBuffer { get; private set; }
-    public DoubleBuffer<float2> particleVelocityBuffer { get; private set; }
+    public ComputeBuffer positionBuffer { get; private set; }
+    public ComputeBuffer particleVelocityBuffer { get; private set; }
 
     // kernel IDs
-    private const int externalForcesKernel = 0;
+    private const int simulateParticlesKernel = 0;
     private const int userInputKernel = 1;
     private const int projectionKernel = 2;
 
@@ -59,15 +60,15 @@ public class Simulation : MonoBehaviour
         // create buffers
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
         cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
-        positionBuffer = new DoubleBuffer<float2>(numParticles);
-        particleVelocityBuffer = new DoubleBuffer<float2>(numParticles);
+        positionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
+        particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", externalForcesKernel, userInputKernel, projectionKernel);
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", simulateParticlesKernel, userInputKernel, projectionKernel);
 
         // set compute shader constants
         compute.SetInt("totalCells", totalCells);
@@ -75,6 +76,7 @@ public class Simulation : MonoBehaviour
         compute.SetInts("size", new int[]{numCells.x, numCells.y});
         compute.SetVector("cellSize", cellSize);
         compute.SetFloat("interactionInputStrength", interactionStrength);
+        compute.SetFloat("particleRadius", particleRadius);
         
         // initialize display
         display.Init(this);
@@ -128,28 +130,27 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
-        // apply external force (gravity)
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", externalForcesKernel);
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", externalForcesKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        cellVelocityBuffer.Swap();
+        // simulate particles
+        ComputeHelper.SetBuffer(compute, particleVelocityBuffer, "particleVelocities", simulateParticlesKernel);
+        ComputeHelper.SetBuffer(compute, positionBuffer, "particlePositions", simulateParticlesKernel);
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: simulateParticlesKernel);
 
-        // handle mouse interactions
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-        cellVelocityBuffer.Swap();
-        
         // solve incompressibility
-        int numIterations = numCells.y;
-        for (int i = 0; i < numIterations; i++)
-        {
-            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
-            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
-            ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
-            cellVelocityBuffer.Swap();
-        }
+        // int numIterations = numCells.y;
+        // for (int i = 0; i < numIterations; i++)
+        // {
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
+        //     ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
+        //     cellVelocityBuffer.Swap();
+        // }
         
+        // handle mouse interactions
+        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
+        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
+        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
+        // cellVelocityBuffer.Swap();
+
     }
 
     // update compute shader settings
@@ -160,21 +161,25 @@ public class Simulation : MonoBehaviour
         compute.SetVector("boundsSize", boundsSize);
         
         // mouse interactions
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        int interactionType = 0;
-        bool isPush = Input.GetMouseButton(0);
-        bool isDelete = Input.GetMouseButton(1);
-        if (isPush)
+        if (Camera.main != null)
         {
-            interactionType = 1;
-        } 
-        else if (isDelete)
-        {
-            interactionType = 2;
-        }
+            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            int interactionType = 0;
+            bool isPush = Input.GetMouseButton(0);
+            bool isDelete = Input.GetMouseButton(1);
+            if (isPush)
+            {
+                interactionType = 1;
+            } 
+            else if (isDelete)
+            {
+                interactionType = 2;
+            }
         
-        compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetInt("interactionInputType", interactionType);
+            compute.SetVector("interactionInputPoint", mousePos);
+            compute.SetInt("interactionInputType", interactionType);
+        }
+
         compute.SetFloat("interactionInputRadius", interactionRadius);
     }
 
@@ -185,10 +190,8 @@ public class Simulation : MonoBehaviour
         cellTypeBuffer.SetData(spawnData.cellTypes);
         cellVelocityBuffer.bufferRead.SetData(spawnData.cellVelocities);
         cellVelocityBuffer.bufferWrite.SetData(spawnData.cellVelocities);
-        particleVelocityBuffer.bufferRead.SetData(spawnData.particleVelocities);
-        particleVelocityBuffer.bufferWrite.SetData(spawnData.particleVelocities);
-        positionBuffer.bufferRead.SetData(spawnData.positions);
-        positionBuffer.bufferWrite.SetData(spawnData.positions);
+        particleVelocityBuffer.SetData(spawnData.particleVelocities);
+        positionBuffer.SetData(spawnData.positions);
     }
 
     private void HandleInput()
@@ -197,8 +200,7 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space))
         {
             isPaused = !isPaused;
-            if (isPaused) Debug.Log("Paused");
-            else Debug.Log("Unpaused");
+            Debug.Log(isPaused ? "Paused" : "Unpaused");
         }
 
         // RIGHT_ARROW: run one step
@@ -219,9 +221,9 @@ public class Simulation : MonoBehaviour
     private void OnDestroy()
     {
         ComputeHelper.Release(cellTypeBuffer);
+        ComputeHelper.Release(positionBuffer);
+        ComputeHelper.Release(particleVelocityBuffer);
         cellVelocityBuffer.Destroy();
-        positionBuffer.Destroy();
-        particleVelocityBuffer.Destroy();
     }
 
     private void OnDrawGizmos()
@@ -231,26 +233,29 @@ public class Simulation : MonoBehaviour
         Gizmos.DrawWireCube(Vector2.zero, boundsSize);
 
         // draw cells
-        Vector2 cellSize = boundsSize / numCells;
+        Vector2 size = boundsSize / numCells;
         Vector2 lowerCorner = -boundsSize / 2;
         for (int y = 0; y < numCells.y; y++)
         {
             for (int x = 0; x < numCells.x; x++)
             {
-                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*cellSize, cellSize);
+                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*size, size);
             }
         }
 
         if (!Application.isPlaying) return;
 
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        bool isPull = Input.GetMouseButton(0);
-        bool isPush = Input.GetMouseButton(1);
-        
-        if (isPull || isPush)
+        if (Camera.main != null)
         {
-            Gizmos.color = isPull ? Color.green : Color.red;
-            Gizmos.DrawWireSphere(mousePos, interactionRadius);
+            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            bool isPull = Input.GetMouseButton(0);
+            bool isPush = Input.GetMouseButton(1);
+        
+            if (isPull || isPush)
+            {
+                Gizmos.color = isPull ? Color.green : Color.red;
+                Gizmos.DrawWireSphere(mousePos, interactionRadius);
+            }
         }
     }
 }

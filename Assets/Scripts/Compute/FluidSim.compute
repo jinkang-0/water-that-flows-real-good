@@ -1,4 +1,4 @@
-#pragma kernel ExternalForces
+#pragma kernel SimulateParticles
 #pragma kernel UserInput
 #pragma kernel Projection
 
@@ -17,14 +17,13 @@ static const int NumThreads = 64;
 RWStructuredBuffer<int> cellTypes;
 RWStructuredBuffer<float2> cellVelocitiesIn;
 RWStructuredBuffer<float2> cellVelocitiesOut;
-RWStructuredBuffer<float2> particleVelocitiesIn;
-RWStructuredBuffer<float2> particleVelocitiesOut;
-RWStructuredBuffer<float2> positionsIn;
-RWStructuredBuffer<float2> positionsOut;
+RWStructuredBuffer<float2> particleVelocities;
+RWStructuredBuffer<float2> particlePositions;
 
 // settings
 float gravity;
 float deltaTime;
+float particleRadius;
 float2 boundsSize;
 float2 cellSize;
 int2 size;
@@ -37,11 +36,7 @@ float interactionInputRadius;
 float interactionInputStrength;
 
 // constants
-const float overRelaxation = 1.9;
-
-static const uint FIELD_HORIZONTAL_VELOCITY = 0;
-static const uint FIELD_VERTICAL_VELOCITY = 1;
-static const uint FIELD_DENSITY = 2;
+static const float overRelaxation = 1.9;
 
 //
 // helpers to work with coordinates
@@ -78,27 +73,63 @@ float2 clampPosition(const float2 p)
 // fluid sim functions
 //
 
+void integrateParticle(uint id)
+{
+    // apply gravity
+    particleVelocities[id.x] = particleVelocities[id.x] + deltaTime * float2(0, gravity);
+
+    // apply velocities
+    particlePositions[id.x] = particlePositions[id.x] + particleVelocities[id.x] * deltaTime;
+}
+
+void handleParticleCollision(uint id)
+{
+    float2 pos = particlePositions[id];
+
+    // handle wall collisions
+    const float minX = particleRadius + 1;
+    const float maxX = size.x - particleRadius - 1;
+    const float minY = particleRadius + 1;
+    const float maxY = size.y - particleRadius - 1;
+    
+    if (pos.x < minX)
+    {
+        pos.x = minX;
+        particleVelocities[id].x = 0;
+    }
+
+    if (pos.x > maxX)
+    {
+        pos.x = maxX;
+        particleVelocities[id].x = 0;
+    }
+
+    if (pos.y < minY)
+    {
+        pos.y = minY;
+        particleVelocities[id].y = 0;
+    }
+
+    if (pos.y > maxY)
+    {
+        pos.y = maxY;
+        particleVelocities[id].y = 0;
+    }
+
+    particlePositions[id] = pos;
+}
+
 //
 // kernels
 //
 
 [numthreads(NumThreads, 1, 1)]
-void ExternalForces(uint3 id : SV_DispatchThreadID)
+void SimulateParticles(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= totalCells) return;
+    if (id.x >= numParticles) return;
 
-    // copy values to ensure no data loss
-    cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x];
-    
-    // exit if cell is on border
-    const int row = idToRow(id.x);
-    if (row == 0) return;
-    
-    // apply gravity to velocity between empty cells
-    if (cellTypes[id.x] == 0 && cellTypes[id.x - size.x] == 0)
-    {
-        cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x] + float2(0, gravity) * deltaTime;
-    }
+    integrateParticle(id.x);
+    handleParticleCollision(id.x);
 }
 
 [numthreads(NumThreads, 1, 1)]

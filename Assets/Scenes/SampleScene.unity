@@ -156,10 +156,11 @@ MonoBehaviour:
   timeScale: 1
   fixedTimeStep: 0
   iterationsPerFrame: 3
-  gravity: 0
+  gravity: -9.81
   boundsSize: {x: 16, y: 9}
   numCells: {x: 128, y: 72}
   numParticles: 100
+  particleRadius: 1
   interactionRadius: 1
   interactionStrength: 10
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}

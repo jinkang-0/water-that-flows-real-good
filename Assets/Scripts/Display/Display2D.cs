@@ -1,6 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
-using UnityEngine.Serialization;
 
+[SuppressMessage("ReSharper", "Unity.PreferAddressByIdToGraphicsParams")]
 public class Display2D : MonoBehaviour
 {
     public float scale;
@@ -26,6 +27,8 @@ public class Display2D : MonoBehaviour
         gridMaterial.SetBuffer("cellTypes", sim.cellTypeBuffer);
 
         particleMaterial = new Material(particleShader);
+        particleMaterial.SetBuffer("particleVelocities", sim.particleVelocityBuffer);
+        particleMaterial.SetBuffer("positions", sim.positionBuffer);
 
         gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
@@ -36,14 +39,12 @@ public class Display2D : MonoBehaviour
     private void LateUpdate()
     {
         if (gridShader == null) return;
+        if (particleShader == null) return;
 
         UpdateSettings();
         
-        gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
+        // gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
         
-        particleMaterial.SetBuffer("particleVelocities", simulation.particleVelocityBuffer.bufferRead);
-        particleMaterial.SetBuffer("positions", simulation.positionBuffer.bufferRead);
-
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
     }
@@ -65,6 +66,7 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetFloat("scale", scale);
         particleMaterial.SetVector("boundsSize", simulation.boundsSize);
         particleMaterial.SetVector("cellSize", simulation.cellSize);
+        particleMaterial.SetFloat("particleRadius", simulation.particleRadius);
     }
 
     private void OnValidate()
