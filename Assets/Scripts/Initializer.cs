@@ -101,7 +101,7 @@ public class Initializer : MonoBehaviour
                     if (pixelColor.a > threshold)
                     {
                         int cellIndex = row * gridSize.x + col;
-                        data.cellTypes[cellIndex] = 0;
+                        data.cellTypes[cellIndex] = 3;
                         waterCells.Add(cellIndex);
                     }
                 }
