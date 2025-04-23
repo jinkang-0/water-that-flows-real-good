@@ -146,6 +146,8 @@ public class Simulation : MonoBehaviour
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: simulateParticlesKernel);
         
         // clear water cells, setup for velocity transfer
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", emptyWaterKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", emptyWaterKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: emptyWaterKernel);
         
         // update water cells based on particle position
@@ -161,14 +163,14 @@ public class Simulation : MonoBehaviour
         cellVelocityBuffer.Swap();
 
         // solve incompressibility
-        int numIterations = numCells.y;
-        for (int i = 0; i < numIterations; i++)
-        {
-            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
-            ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
-            ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
-            cellVelocityBuffer.Swap();
-        }
+        // int numIterations = numCells.y;
+        // for (int i = 0; i < numIterations; i++)
+        // {
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
+        //     ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
+        //     cellVelocityBuffer.Swap();
+        // }
 
         // transfer velocity from grid to particle
         VelocityTransferGrid();
@@ -183,7 +185,7 @@ public class Simulation : MonoBehaviour
     private void VelocityTransferParticle()
     {
         // copy buffer to CPU
-        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
+        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferWrite, totalCells);
         float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
@@ -248,6 +250,7 @@ public class Simulation : MonoBehaviour
     {
         // update buffers
         cellTypeBuffer.SetData(spawnData.cellTypes);
+        cellWeightBuffer.SetData(spawnData.cellWeights);
         cellVelocityBuffer.bufferRead.SetData(spawnData.cellVelocities);
         cellVelocityBuffer.bufferWrite.SetData(spawnData.cellVelocities);
         particleVelocityBuffer.SetData(spawnData.particleVelocities);

@@ -98,10 +98,10 @@ bool isSolidCell(const uint id)
 void integrateParticle(uint id)
 {
     // apply gravity
-    particleVelocities[id.x] = particleVelocities[id.x] + deltaTime * float2(0, gravity);
+    particleVelocities[id.x] += deltaTime * float2(0, gravity);
 
     // apply velocities
-    particlePositions[id.x] = particlePositions[id.x] + particleVelocities[id.x] * deltaTime;
+    particlePositions[id.x] += particleVelocities[id.x] * deltaTime;
 }
 
 void handleParticleCollision(uint id)
@@ -231,6 +231,8 @@ void EmptyWaterCells(uint3 id : SV_DispatchThreadID)
         cellTypes[id.x] = AIR_CELL;
 
     cellWeights[id.x] = 0;
+    cellVelocitiesIn[id.x] = cellVelocitiesOut[id.x];
+    cellVelocitiesOut[id.x] = 0;
 }
 
 [numthreads(NumThreads, 1, 1)]

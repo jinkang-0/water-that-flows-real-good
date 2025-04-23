@@ -50,8 +50,15 @@ public class CPUCompute
 
     private uint2 ClampCellToGrid(uint2 pos)
     {
-        pos.x = (uint)Mathf.Clamp(pos.x, 1, simulation.numCells.x - 1);
-        pos.y = (uint)Mathf.Clamp(pos.y, 1, simulation.numCells.y - 1);
+        pos.x = (uint)Mathf.Clamp(pos.x, 0, simulation.numCells.x - 2);
+        pos.y = (uint)Mathf.Clamp(pos.y, 0, simulation.numCells.y - 2);
+        return pos;
+    }
+
+    private float2 ClampPosToGrid(float2 pos)
+    {
+        pos.x = Mathf.Clamp(pos.x, 1, simulation.numCells.x - 1);
+        pos.y = Mathf.Clamp(pos.y, 1, simulation.numCells.y - 1);
         return pos;
     }
 
@@ -71,16 +78,16 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = particlePositions[i];
-            var cellPos = ClampCellToGrid(GetCellContainingPos(pos));
+            var pos = ClampPosToGrid(particlePositions[i]);
+            var cellPos = GetCellContainingPos(pos);
             var uDelta = new float2(0, 0.5f);
             var vDelta = new float2(0.5f, 0);
             
             // get bounding positions for the cells to interpolate, for both u and v
             var uLower = ClampCellToGrid((uint2)(cellPos - uDelta));
-            var uUpper = uLower + 1;
+            var uUpper = ClampCellToGrid(uLower + 1);
             var vLower = ClampCellToGrid((uint2)(cellPos - vDelta));
-            var vUpper = vLower + 1;
+            var vUpper = ClampCellToGrid(vLower + 1);
             
             // compute position deltas for interpolation
             var ut = pos - uDelta - uLower;
@@ -138,20 +145,20 @@ public class CPUCompute
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
         
-        // transfer particle velocity to grid
+        // transfer grid velocity to particles
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = particlePositions[i];
-            var cellPos = ClampCellToGrid(GetCellContainingPos(pos));
+            var pos = ClampPosToGrid(particlePositions[i]);
+            var cellPos = GetCellContainingPos(pos);
             var uDelta = new float2(0, 0.5f);
             var vDelta = new float2(0.5f, 0);
             
             // get bounding positions for the cells to interpolate, for both u and v
             var uLower = ClampCellToGrid((uint2)(cellPos - uDelta));
-            var uUpper = uLower + 1;
+            var uUpper = ClampCellToGrid(uLower + 1);
             var vLower = ClampCellToGrid((uint2)(cellPos - vDelta));
-            var vUpper = vLower + 1;
+            var vUpper = ClampCellToGrid(vLower + 1);
             
             // compute position deltas for interpolation
             var ut = pos - uDelta - uLower;
@@ -182,15 +189,15 @@ public class CPUCompute
             var vc4 = GetCellIndex(vLower.x, vUpper.y);
 
             // check cell validity
-            var uValid1 = cellTypes[uc1] != AIR_CELL || cellTypes[uc1 - size.x] != AIR_CELL ? 1f : 0f;
-            var uValid2 = cellTypes[uc2] != AIR_CELL || cellTypes[uc2 - size.x] != AIR_CELL ? 1f : 0f;
-            var uValid3 = cellTypes[uc3] != AIR_CELL || cellTypes[uc3 - size.x] != AIR_CELL ? 1f : 0f;
-            var uValid4 = cellTypes[uc4] != AIR_CELL || cellTypes[uc4 - size.x] != AIR_CELL ? 1f : 0f;
+            var uValid1 = cellTypes[uc1] != AIR_CELL || cellTypes[uc1 - 1] != AIR_CELL ? 1f : 0f;
+            var uValid2 = cellTypes[uc2] != AIR_CELL || cellTypes[uc2 - 1] != AIR_CELL ? 1f : 0f;
+            var uValid3 = cellTypes[uc3] != AIR_CELL || cellTypes[uc3 - 1] != AIR_CELL ? 1f : 0f;
+            var uValid4 = cellTypes[uc4] != AIR_CELL || cellTypes[uc4 - 1] != AIR_CELL ? 1f : 0f;
 
-            var vValid1 = cellTypes[vc1] != AIR_CELL || cellTypes[vc1 - 1] != AIR_CELL ? 1f : 0f;
-            var vValid2 = cellTypes[vc2] != AIR_CELL || cellTypes[vc2 - 1] != AIR_CELL ? 1f : 0f;
-            var vValid3 = cellTypes[vc3] != AIR_CELL || cellTypes[vc3 - 1] != AIR_CELL ? 1f : 0f;
-            var vValid4 = cellTypes[vc4] != AIR_CELL || cellTypes[vc4 - 1] != AIR_CELL ? 1f : 0f;
+            var vValid1 = cellTypes[vc1] != AIR_CELL || cellTypes[vc1 - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid2 = cellTypes[vc2] != AIR_CELL || cellTypes[vc2 - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid3 = cellTypes[vc3] != AIR_CELL || cellTypes[vc3 - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid4 = cellTypes[vc4] != AIR_CELL || cellTypes[vc4 - size.x] != AIR_CELL ? 1f : 0f;
 
             // interpolate velocities
             var uw = uValid1 * uw1 + uValid2 * uw2 + uValid3 * uw3 + uValid4 * uw4;
