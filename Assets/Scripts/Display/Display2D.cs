@@ -43,7 +43,7 @@ public class Display2D : MonoBehaviour
 
         UpdateSettings();
         
-        // gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
+        gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
         
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
@@ -57,6 +57,7 @@ public class Display2D : MonoBehaviour
         gridMaterial.SetFloat("scale", scale);
         gridMaterial.SetColor("terrainColor", terrainColor);
         gridMaterial.SetColor("stoneColor", stoneColor);
+        gridMaterial.SetColor("waterColor", waterColor);
         gridMaterial.SetInt("numCols", simulation.numCells.x);
         gridMaterial.SetInt("numRows", simulation.numCells.y);
         gridMaterial.SetVector("boundsSize", simulation.boundsSize);

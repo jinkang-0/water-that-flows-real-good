@@ -74,8 +74,8 @@ float2 gridPosition(const uint col, const uint row)
 
 uint2 cellContaining(const float2 pos)
 {
-    uint col = clamp(floor(pos.x), 1, size.x);
-    uint row = clamp(floor(pos.y), 1, size.x);
+    uint col = clamp(floor(pos.x), 1, size.x - 1);
+    uint row = clamp(floor(pos.y), 1, size.y - 1);
     return uint2(col, row);
 }
 
@@ -84,6 +84,11 @@ uint2 clampCell(const uint2 pos)
     const uint2 lowerLeft = uint2(1, 1);
     const uint2 upperRight = uint2(size.x - 1, size.y - 1);
     return clamp(pos, lowerLeft, upperRight);
+}
+
+bool isSolidCell(const uint id)
+{
+    return cellTypes[id] == TERRAIN_CELL || cellTypes[id] == STONE_CELL;
 }
 
 //
@@ -186,10 +191,12 @@ void UserInput(uint3 id : SV_DispatchThreadID)
 void Projection(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
-    if (cellTypes[id.x] != 0) return;
     
     // copy values to ensure no data loss
     cellVelocitiesOut[id.x] = cellVelocitiesIn[id.x];
+
+    // exit if not water cell
+    if (cellTypes[id.x] != WATER_CELL) return;
 
     // exit if it is on a bound
     const int col = idToCol(id.x);
@@ -197,10 +204,10 @@ void Projection(uint3 id : SV_DispatchThreadID)
     if (row == 0 || row == size.y-1 || col == 0 || col == size.x-1) return;
     
     // check cell types
-    const int sLeft = cellTypes[id.x-1] == 0 ? 1 : 0;
-    const int sRight = cellTypes[id.x+1] == 0 ? 1 : 0;
-    const int sUp = cellTypes[id.x - size.x] == 0 ? 1 : 0;
-    const int sDown = cellTypes[id.x + size.x] == 0 ? 1 : 0;
+    const int sLeft = !isSolidCell(id.x - 1) ? 1 : 0;
+    const int sRight = !isSolidCell(id.x + 1) ? 1 : 0;
+    const int sUp = !isSolidCell(id.x - size.x) ? 1 : 0;
+    const int sDown = !isSolidCell(id.x + size.x) ? 1 : 0;
     const int s = sLeft + sRight + sUp + sDown;
     if (s == 0) return;
     
@@ -222,6 +229,8 @@ void EmptyWaterCells(uint3 id : SV_DispatchThreadID)
 
     if (cellTypes[id.x] == WATER_CELL)
         cellTypes[id.x] = AIR_CELL;
+
+    cellWeights[id.x] = 0;
 }
 
 [numthreads(NumThreads, 1, 1)]
@@ -241,5 +250,22 @@ void NormalizeCellVelocity(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= totalCells) return;
 
-    cellVelocitiesOut[id.x] /= cellWeights[id.x];
+    // note: keep cell velocity in the same as it was before particle->grid velocity transfer
+    // this way we can restore velocity for solid cells
+    if (cellWeights[id.x].x > 0)
+        cellVelocitiesOut[id.x].x /= cellWeights[id.x].x;
+    if (cellWeights[id.x].y > 0)
+        cellVelocitiesOut[id.x].y /= cellWeights[id.x].y;
+
+    // restore velocity for solid cells
+    const uint col = idToCol(id.x);
+    const uint row = idToRow(id.x);
+    const bool isSolid = isSolidCell(id.x);
+    const bool leftIsSolid = col > 0 && isSolidCell(id.x - 1);
+    const bool upIsSolid = row > 0 && isSolidCell(id.x - size.x);
+
+    if (isSolid || leftIsSolid)
+        cellVelocitiesOut[id.x].x = cellVelocitiesIn[id.x].x;
+    if (isSolid || upIsSolid)
+        cellVelocitiesOut[id.x].y = cellVelocitiesIn[id.x].y;
 }
