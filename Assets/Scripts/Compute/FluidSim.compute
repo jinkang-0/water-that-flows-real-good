@@ -10,12 +10,8 @@ static const int NumThreads = 64;
 // buffers
 //
 // Staggered velocity grid:
-// - vertical velocity tracks velocity above cell
-// - horizontal velocity tracks velocity left of cell
-//
-// Side effect:
-//     bottom row won't have velocity below it, rightmost col won't have velocity right of it
-//     but that doesn't matter - just have to check for bounds and adjust accordingly
+// - v[i] tracks velocity on the left edge of i
+// - u[i] tracks velocity on the bottom edge of i
 //
 RWStructuredBuffer<int> cellTypes;
 RWStructuredBuffer<float2> cellWeights;
@@ -74,8 +70,8 @@ float2 gridPosition(const uint col, const uint row)
 
 uint2 cellContaining(const float2 pos)
 {
-    uint col = clamp(floor(pos.x), 1, size.x - 1);
-    uint row = clamp(floor(pos.y), 1, size.y - 1);
+    uint col = clamp(floor(pos.x), 0, size.x - 1);
+    uint row = clamp(floor(pos.y), 0, size.y - 1);
     return uint2(col, row);
 }
 
@@ -202,24 +198,31 @@ void Projection(uint3 id : SV_DispatchThreadID)
     const int col = idToCol(id.x);
     const int row = idToRow(id.x);
     if (row == 0 || row == size.y-1 || col == 0 || col == size.x-1) return;
+
+    // get neighbor indices for ease
+    const int center = id.x;
+    const int left = id.x - 1;
+    const int right = id.x + 1;
+    const int up = id.x - size.x;
+    const int down = id.x + size.x;
     
     // check cell types
-    const int sLeft = !isSolidCell(id.x - 1) ? 1 : 0;
-    const int sRight = !isSolidCell(id.x + 1) ? 1 : 0;
-    const int sUp = !isSolidCell(id.x - size.x) ? 1 : 0;
-    const int sDown = !isSolidCell(id.x + size.x) ? 1 : 0;
+    const int sLeft = !isSolidCell(left) ? 1 : 0;
+    const int sRight = !isSolidCell(right) ? 1 : 0;
+    const int sUp = !isSolidCell(up) ? 1 : 0;
+    const int sDown = !isSolidCell(down) ? 1 : 0;
     const int s = sLeft + sRight + sUp + sDown;
     if (s == 0) return;
     
     // compute divergence
-    float d = cellVelocitiesIn[id.x+1].x - cellVelocitiesIn[id.x].x + cellVelocitiesIn[id.x].y - cellVelocitiesIn[id.x + size.x].y;
+    float d = cellVelocitiesIn[right].x - cellVelocitiesIn[center].x + cellVelocitiesIn[up].y - cellVelocitiesIn[center].y;
     d *= overRelaxation / s;
 
     // solve incompressibility
-    cellVelocitiesOut[id.x].x = cellVelocitiesIn[id.x].x + d * sLeft;
-    cellVelocitiesOut[id.x+1].x = cellVelocitiesIn[id.x+1].x - d * sRight;
-    cellVelocitiesOut[id.x].y = cellVelocitiesIn[id.x].y + d * sUp;
-    cellVelocitiesOut[id.x+size.x].y = cellVelocitiesIn[id.x+size.x].y - d * sDown;
+    cellVelocitiesOut[center].x = cellVelocitiesIn[center].x - d * sLeft;
+    cellVelocitiesOut[right].x = cellVelocitiesIn[right].x + d * sRight;
+    cellVelocitiesOut[center].y = cellVelocitiesIn[center].y - d * sDown;
+    cellVelocitiesOut[up].y = cellVelocitiesIn[up].y + d * sUp;
 }
 
 [numthreads(NumThreads, 1, 1)]
@@ -264,10 +267,10 @@ void NormalizeCellVelocity(uint3 id : SV_DispatchThreadID)
     const uint row = idToRow(id.x);
     const bool isSolid = isSolidCell(id.x);
     const bool leftIsSolid = col > 0 && isSolidCell(id.x - 1);
-    const bool upIsSolid = row > 0 && isSolidCell(id.x - size.x);
+    const bool bottomIsSolid = row < size.y - 1 && isSolidCell(id.x + size.x);
 
     if (isSolid || leftIsSolid)
         cellVelocitiesOut[id.x].x = cellVelocitiesIn[id.x].x;
-    if (isSolid || upIsSolid)
+    if (isSolid || bottomIsSolid)
         cellVelocitiesOut[id.x].y = cellVelocitiesIn[id.x].y;
 }

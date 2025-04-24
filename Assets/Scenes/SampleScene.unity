@@ -213,7 +213,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainTexture: {fileID: 2800000, guid: ebcf7833ab2d82f458a3426dee5d61b3, type: 3}
-  waterTexture: {fileID: 2800000, guid: 8356f306416667144918b0aa96af5ce8, type: 3}
+  waterTexture: {fileID: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0

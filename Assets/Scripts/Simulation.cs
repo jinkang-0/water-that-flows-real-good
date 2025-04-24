@@ -163,7 +163,7 @@ public class Simulation : MonoBehaviour
         cellVelocityBuffer.Swap();
 
         // solve incompressibility
-        // int numIterations = numCells.y;
+        // int numIterations = 50;
         // for (int i = 0; i < numIterations; i++)
         // {
         //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
@@ -171,6 +171,8 @@ public class Simulation : MonoBehaviour
         //     ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
         //     cellVelocityBuffer.Swap();
         // }
+        SolveIncompressibility();
+        cellVelocityBuffer.SyncToWrite();
 
         // transfer velocity from grid to particle
         VelocityTransferGrid();
@@ -213,6 +215,18 @@ public class Simulation : MonoBehaviour
         
         // copy buffer to GPU
         particleVelocityBuffer.SetData(particleVelocities);
+    }
+
+    private void SolveIncompressibility()
+    {
+        // copy buffers to CPU
+        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
+        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
+        
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, 50, 1.9f);
+        
+        // copy buffer to GPU
+        cellVelocityBuffer.bufferRead.SetData(cellVelocities);
     }
 
     // update compute shader settings

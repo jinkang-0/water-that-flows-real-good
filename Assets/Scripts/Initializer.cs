@@ -144,10 +144,11 @@ public class Initializer : MonoBehaviour
             
             // spawn particles in middle of screen
             var rng = new Unity.Mathematics.Random(42);
+            var spread = 20f;
             float2 center = new float2(gridSize.x, gridSize.y) / 2;
             for (int i = 0; i < numParticles; i++)
             {
-                data.positions[i] = center + rng.NextFloat2() - 0.5f;
+                data.positions[i] = center + spread * (rng.NextFloat2() - 0.5f);
             }
         }
         
