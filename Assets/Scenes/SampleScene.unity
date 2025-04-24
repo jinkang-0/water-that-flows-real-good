@@ -159,7 +159,7 @@ MonoBehaviour:
   gravity: -9.81
   boundsSize: {x: 16, y: 9}
   numCells: {x: 128, y: 72}
-  numParticles: 100
+  numParticles: 1000
   particleRadius: 0.5
   interactionRadius: 1
   interactionStrength: 10

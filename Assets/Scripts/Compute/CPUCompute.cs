@@ -125,7 +125,7 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
+            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, -0.5f));
             var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
@@ -168,7 +168,7 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
+            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, -0.5f));
             var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
