@@ -9,9 +9,11 @@ public class Simulation : MonoBehaviour
     public float timeScale = 1;
     public bool fixedTimeStep;
     public int iterationsPerFrame;
-    public float gravity;
+    public float gravity = -9.81f;
     public Vector2 boundsSize;
     public Vector2Int numCells;
+    public int numParticles;
+    public float particleRadius;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
@@ -27,18 +29,22 @@ public class Simulation : MonoBehaviour
     private int totalCells;
     private int numVelocities;
     private Initializer.SpawnData spawnData;
+    private CPUCompute cpuCompute;
 
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
-    public ComputeBuffer vrVelocityBuffer { get; private set; }
-    public ComputeBuffer hrVelocityBuffer { get; private set; }
-    private ComputeBuffer hrVelocityBuffer2;
-    private ComputeBuffer vrVelocityBuffer2;
+    public DoubleBuffer<float2> cellVelocityBuffer { get; private set; }
+    public ComputeBuffer cellWeightBuffer { get; private set; }
+    public ComputeBuffer positionBuffer { get; private set; }
+    public ComputeBuffer particleVelocityBuffer { get; private set; }
 
     // kernel IDs
-    private const int externalForcesKernel = 0;
-    private const int updateCellsKernel = 1;
-    private const int applyVelocitiesKernel = 2;
+    private const int simulateParticlesKernel = 0;
+    private const int userInputKernel = 1;
+    private const int projectionKernel = 2;
+    private const int emptyWaterKernel = 3;
+    private const int fillWaterKernel = 4;
+    private const int normalizeCellVelocityKernel = 5;
 
     // state
     private bool isPaused;
@@ -58,29 +64,36 @@ public class Simulation : MonoBehaviour
 
         // create buffers
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
-        vrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        vrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
-        hrVelocityBuffer2 = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
+        cellWeightBuffer = ComputeHelper.CreateStructuredBuffer<float2>(totalCells);
+        cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
+        positionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
+        particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         
         // initialize buffer data
-        spawnData = initializer.GetSpawnData(numCells);
+        spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
         
         // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", updateCellsKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer, "vrVelocities", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, vrVelocityBuffer2, "vrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer, "hrVelocities", externalForcesKernel, applyVelocitiesKernel);
-        ComputeHelper.SetBuffer(compute, hrVelocityBuffer2, "hrVelocitiesOut", externalForcesKernel, applyVelocitiesKernel);
-        
+        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", simulateParticlesKernel, userInputKernel, projectionKernel, emptyWaterKernel, fillWaterKernel, normalizeCellVelocityKernel);
+        ComputeHelper.SetBuffer(compute, cellWeightBuffer, "cellWeights", emptyWaterKernel, normalizeCellVelocityKernel);
+        ComputeHelper.SetBuffer(compute, particleVelocityBuffer, "particleVelocities", simulateParticlesKernel);
+        ComputeHelper.SetBuffer(compute, positionBuffer, "particlePositions", simulateParticlesKernel, fillWaterKernel);
+
+        // set compute shader constants
         compute.SetInt("totalCells", totalCells);
-        compute.SetInt("numRows", numCells.y);
-        compute.SetInt("numCols", numCells.x);
+        compute.SetInt("numParticles", numParticles);
+        compute.SetInts("size", new int[]{numCells.x, numCells.y});
         compute.SetVector("cellSize", cellSize);
+        compute.SetFloat("interactionInputStrength", interactionStrength);
+        compute.SetFloat("particleRadius", particleRadius);
         
         // initialize display
         display.Init(this);
+        
+        // initialize cpu compute
+        cpuCompute = new CPUCompute(this);
+
+        isPaused = true;
     }
 
     private void FixedUpdate()
@@ -129,9 +142,91 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep()
     {
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: externalForcesKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: applyVelocitiesKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: updateCellsKernel);
+        // simulate particle physics
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: simulateParticlesKernel);
+        
+        // clear water cells, setup for velocity transfer
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", emptyWaterKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", emptyWaterKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: emptyWaterKernel);
+        
+        // update water cells based on particle position
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: fillWaterKernel);
+        
+        // transfer velocity from particle to grid
+        VelocityTransferParticle();
+
+        // normalize cell velocity based on weights
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", normalizeCellVelocityKernel);
+        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", normalizeCellVelocityKernel);
+        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: normalizeCellVelocityKernel);
+        cellVelocityBuffer.Swap();
+
+        // solve incompressibility
+        // int numIterations = 50;
+        // for (int i = 0; i < numIterations; i++)
+        // {
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", projectionKernel);
+        //     ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", projectionKernel);
+        //     ComputeHelper.Dispatch(compute, totalCells, kernelIndex: projectionKernel);
+        //     cellVelocityBuffer.Swap();
+        // }
+        SolveIncompressibility();
+        cellVelocityBuffer.SyncToWrite();
+
+        // transfer velocity from grid to particle
+        VelocityTransferGrid();
+
+        // handle mouse interactions
+        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
+        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
+        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
+        // cellVelocityBuffer.Swap();
+    }
+
+    private void VelocityTransferParticle()
+    {
+        // copy buffer to CPU
+        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferWrite, totalCells);
+        float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
+        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
+        float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
+        
+        // transfer velocity on CPU
+        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities);
+        
+        // copy buffer to GPU
+        cellVelocityBuffer.bufferWrite.SetData(cellVelocities);
+        cellWeightBuffer.SetData(cellWeights);
+        positionBuffer.SetData(particlePositions);
+        particleVelocityBuffer.SetData(particleVelocities);
+    }
+
+    private void VelocityTransferGrid()
+    {
+        // copy buffer to CPU
+        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
+        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
+        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
+        float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
+        
+        // transfer velocity on CPU
+        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
+        
+        // copy buffer to GPU
+        particleVelocityBuffer.SetData(particleVelocities);
+    }
+
+    private void SolveIncompressibility()
+    {
+        // copy buffers to CPU
+        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
+        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
+        
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, 50, 1.9f);
+        
+        // copy buffer to GPU
+        cellVelocityBuffer.bufferRead.SetData(cellVelocities);
     }
 
     // update compute shader settings
@@ -142,47 +237,38 @@ public class Simulation : MonoBehaviour
         compute.SetVector("boundsSize", boundsSize);
         
         // mouse interactions
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        int interactionType = 0;
-        bool isPush = Input.GetMouseButton(0);
-        bool isDelete = Input.GetMouseButton(1);
-        if (isPush)
+        if (Camera.main != null)
         {
-            interactionType = 1;
-        } 
-        else if (isDelete)
-        {
-            interactionType = 2;
-        }
+            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            int interactionType = 0;
+            bool isPush = Input.GetMouseButton(0);
+            bool isDelete = Input.GetMouseButton(1);
+            if (isPush)
+            {
+                interactionType = 1;
+            } 
+            else if (isDelete)
+            {
+                interactionType = 2;
+            }
         
-        compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetInt("interactionInputType", interactionType);
+            compute.SetVector("interactionInputPoint", mousePos);
+            compute.SetInt("interactionInputType", interactionType);
+        }
+
         compute.SetFloat("interactionInputRadius", interactionRadius);
     }
 
     // reset buffer data to spawner data
     private void SetInitialBufferData()
     {
-        // get initial cell types
-        int[] initialCellTypes = new int[spawnData.cellTypes.Length];
-        System.Array.Copy(spawnData.cellTypes, initialCellTypes, spawnData.cellTypes.Length);
-        
-        // get initial velocities
-        float[] initialVrVelocities = new float[spawnData.vrVelocities.Length];
-        float[] initialVrVelocities2 = new float[spawnData.vrVelocities.Length];
-        float[] initialHrVelocities = new float[spawnData.hrVelocities.Length];
-        float[] initialHrVelocities2 = new float[spawnData.hrVelocities.Length];
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.vrVelocities, initialVrVelocities2, spawnData.vrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities, spawnData.hrVelocities.Length);
-        System.Array.Copy(spawnData.hrVelocities, initialHrVelocities2, spawnData.hrVelocities.Length);
-        
         // update buffers
-        cellTypeBuffer.SetData(initialCellTypes);
-        vrVelocityBuffer.SetData(initialVrVelocities);
-        vrVelocityBuffer2.SetData(initialVrVelocities2);
-        hrVelocityBuffer.SetData(initialHrVelocities);
-        hrVelocityBuffer2.SetData(initialHrVelocities2);
+        cellTypeBuffer.SetData(spawnData.cellTypes);
+        cellWeightBuffer.SetData(spawnData.cellWeights);
+        cellVelocityBuffer.bufferRead.SetData(spawnData.cellVelocities);
+        cellVelocityBuffer.bufferWrite.SetData(spawnData.cellVelocities);
+        particleVelocityBuffer.SetData(spawnData.particleVelocities);
+        positionBuffer.SetData(spawnData.positions);
     }
 
     private void HandleInput()
@@ -191,8 +277,7 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space))
         {
             isPaused = !isPaused;
-            if (isPaused) Debug.Log("Paused");
-            else Debug.Log("Unpaused");
+            Debug.Log(isPaused ? "Paused" : "Unpaused");
         }
 
         // RIGHT_ARROW: run one step
@@ -212,7 +297,11 @@ public class Simulation : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(cellTypeBuffer, vrVelocityBuffer, vrVelocityBuffer2, hrVelocityBuffer, hrVelocityBuffer2);
+        ComputeHelper.Release(cellTypeBuffer);
+        ComputeHelper.Release(positionBuffer);
+        ComputeHelper.Release(particleVelocityBuffer);
+        ComputeHelper.Release(cellWeightBuffer);
+        cellVelocityBuffer.Destroy();
     }
 
     private void OnDrawGizmos()
@@ -222,26 +311,29 @@ public class Simulation : MonoBehaviour
         Gizmos.DrawWireCube(Vector2.zero, boundsSize);
 
         // draw cells
-        Vector2 cellSize = boundsSize / numCells;
+        Vector2 size = boundsSize / numCells;
         Vector2 lowerCorner = -boundsSize / 2;
         for (int y = 0; y < numCells.y; y++)
         {
             for (int x = 0; x < numCells.x; x++)
             {
-                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*cellSize, cellSize);
+                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*size, size);
             }
         }
 
         if (!Application.isPlaying) return;
 
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        bool isPull = Input.GetMouseButton(0);
-        bool isPush = Input.GetMouseButton(1);
-        
-        if (isPull || isPush)
+        if (Camera.main != null)
         {
-            Gizmos.color = isPull ? Color.green : Color.red;
-            Gizmos.DrawWireSphere(mousePos, interactionRadius);
+            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            bool isPull = Input.GetMouseButton(0);
+            bool isPush = Input.GetMouseButton(1);
+        
+            if (isPull || isPush)
+            {
+                Gizmos.color = isPull ? Color.green : Color.red;
+                Gizmos.DrawWireSphere(mousePos, interactionRadius);
+            }
         }
     }
 }
