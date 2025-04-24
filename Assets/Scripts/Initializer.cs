@@ -50,7 +50,7 @@ public class Initializer : MonoBehaviour
                     float normalizedX = (col + 0.5f) / gridSize.x;
                     float normalizedY = (row + 0.5f) / gridSize.y;
 
-                    int pixelX = Mathf.FloorToInt(normalizedX *textureWidth);
+                    int pixelX = Mathf.FloorToInt(normalizedX * textureWidth);
                     int pixelY = Mathf.FloorToInt(normalizedY * textureHeight);
 
                     // clamp the coordinates

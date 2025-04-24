@@ -203,8 +203,8 @@ void Projection(uint3 id : SV_DispatchThreadID)
     const int center = id.x;
     const int left = id.x - 1;
     const int right = id.x + 1;
-    const int up = id.x - size.x;
-    const int down = id.x + size.x;
+    const int up = id.x + size.x;
+    const int down = id.x - size.x;
     
     // check cell types
     const int sLeft = !isSolidCell(left) ? 1 : 0;
@@ -267,7 +267,7 @@ void NormalizeCellVelocity(uint3 id : SV_DispatchThreadID)
     const uint row = idToRow(id.x);
     const bool isSolid = isSolidCell(id.x);
     const bool leftIsSolid = col > 0 && isSolidCell(id.x - 1);
-    const bool bottomIsSolid = row < size.y - 1 && isSolidCell(id.x + size.x);
+    const bool bottomIsSolid = row > 0 && isSolidCell(id.x - size.x);
 
     if (isSolid || leftIsSolid)
         cellVelocitiesOut[id.x].x = cellVelocitiesIn[id.x].x;

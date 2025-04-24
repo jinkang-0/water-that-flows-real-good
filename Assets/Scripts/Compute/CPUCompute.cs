@@ -125,7 +125,7 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, -0.5f));
+            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
             var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
@@ -168,7 +168,7 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, -0.5f));
+            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
             var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
@@ -182,10 +182,10 @@ public class CPUCompute
             var uValid2 = cellTypes[ui[2]] != AIR_CELL || cellTypes[ui[2] - 1] != AIR_CELL ? 1f : 0f;
             var uValid3 = cellTypes[ui[3]] != AIR_CELL || cellTypes[ui[3] - 1] != AIR_CELL ? 1f : 0f;
 
-            var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] + size.x] != AIR_CELL ? 1f : 0f;
-            var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] + size.x] != AIR_CELL ? 1f : 0f;
-            var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] + size.x] != AIR_CELL ? 1f : 0f;
-            var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] + size.x] != AIR_CELL ? 1f : 0f;
+            var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] - size.x] != AIR_CELL ? 1f : 0f;
 
             // interpolate velocities
             var uWeight = uValid0 * uw[0] + uValid1 * uw[1] + uValid2 * uw[2] + uValid3 * uw[3];
@@ -229,8 +229,8 @@ public class CPUCompute
                     // compute neighbor indices for ease
                     var left = idx - 1;
                     var right = idx + 1;
-                    var top = idx - size.x;
-                    var bottom = idx + size.x;
+                    var top = idx + size.x;
+                    var bottom = idx - size.x;
                     
                     // confirm solids
                     var sLeft = IsSolidCell(cellTypes[left]) ? 0f : 1f;
