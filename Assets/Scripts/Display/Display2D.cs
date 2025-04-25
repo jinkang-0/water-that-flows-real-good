@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Unity.Mathematics;
 using UnityEngine;
 
 [SuppressMessage("ReSharper", "Unity.PreferAddressByIdToGraphicsParams")]
@@ -18,18 +19,34 @@ public class Display2D : MonoBehaviour
     private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
+    
+    // buffers
+    private ComputeBuffer cellTypeBuffer;
+    private ComputeBuffer cellVelocityBuffer;
+    private ComputeBuffer particlePositionBuffer;
+    private ComputeBuffer particleVelocityBuffer;
 
     private Simulation simulation;
 
     public void Init(Simulation sim)
     {
         gridMaterial = new Material(gridShader);
-        gridMaterial.SetBuffer("cellTypes", sim.cellTypeBuffer);
-
         particleMaterial = new Material(particleShader);
-        particleMaterial.SetBuffer("particleVelocities", sim.particleVelocityBuffer);
+        
+        // initialize buffers
+        var numCells = sim.numCells.x * sim.numCells.y;
+        cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(numCells);
+        cellVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numCells);
+        particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
+        particlePositionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
+        
+        // bind buffers
+        gridMaterial.SetBuffer("cellTypes", cellTypeBuffer);
+        gridMaterial.SetBuffer("cellVelocities", cellVelocityBuffer);
+        particleMaterial.SetBuffer("particleVelocities", particleVelocityBuffer);
+        particleMaterial.SetBuffer("particlePositions", particlePositionBuffer);
 
-        gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
+        gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
         particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
@@ -42,8 +59,11 @@ public class Display2D : MonoBehaviour
 
         UpdateSettings();
         
-        gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
-        particleMaterial.SetBuffer("positions", simulation.positionBuffer.bufferRead);
+        // update data
+        cellTypeBuffer.SetData(simulation.cellTypes);
+        cellVelocityBuffer.SetData(simulation.cellVelocities);
+        particleVelocityBuffer.SetData(simulation.particleVelocities);
+        particlePositionBuffer.SetData(simulation.particlePositions);
         
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
@@ -81,5 +101,9 @@ public class Display2D : MonoBehaviour
     {
         ComputeHelper.Release(gridArgsBuffer);
         ComputeHelper.Release(particleArgsBuffer);
+        ComputeHelper.Release(cellTypeBuffer);
+        ComputeHelper.Release(cellVelocityBuffer);
+        ComputeHelper.Release(particlePositionBuffer);
+        ComputeHelper.Release(particleVelocityBuffer);
     }
 }

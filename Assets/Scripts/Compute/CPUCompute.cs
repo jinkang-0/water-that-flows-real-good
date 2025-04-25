@@ -115,9 +115,85 @@ public class CPUCompute
     //
     // fluid sim pipelines
     //
-    public void VelocityTransferParticle(float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, float2[] particleVelocities)
+    public void SimulateParticles(float2[] particlePositions, float2[] particleVelocities, float gravity, float deltaTime)
     {
         var numParticles = particlePositions.Length;
+
+        // integrate position & velocity
+        for (int i = 0; i < numParticles; i++)
+        {
+            particleVelocities[i].y += gravity * deltaTime;
+            particlePositions[i] += particleVelocities[i] * deltaTime;
+        }
+        
+        // handle bounding collision
+        var r = simulation.particleRadius;
+        var size = simulation.numCells;
+        
+        var minX = r + 1;
+        var maxX = size.x - r - 1;
+        var minY = r + 1;
+        var maxY = size.y - r - 1;
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            if (pos.x < minX)
+            {
+                pos.x = minX;
+                particleVelocities[i].x = 0;
+            }
+
+            if (pos.x > maxX)
+            {
+                pos.x = maxX;
+                particleVelocities[i].x = 0;
+            }
+
+            if (pos.y < minY)
+            {
+                pos.y = minY;
+                particleVelocities[i].y = 0;
+            }
+
+            if (pos.y > maxY)
+            {
+                pos.y = maxY;
+                particleVelocities[i].y = 0;
+            }
+
+            particlePositions[i] = pos;
+        }
+    }
+    
+    public void VelocityTransferParticle(int[] cellTypes, float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, float2[] particleVelocities)
+    {
+        var numParticles = particlePositions.Length;
+        var numCells = cellWeights.Length;
+        var size = simulation.numCells;
+        var prevCellVelocities = new float2[numCells];
+        
+        // empty water
+        for (int i = 0; i < numCells; i++)
+        {
+            if (cellTypes[i] == WATER_CELL)
+                cellTypes[i] = AIR_CELL;
+
+            cellWeights[i] = 0;
+            prevCellVelocities[i] = cellVelocities[i];
+            cellVelocities[i] = 0;
+        }
+        
+        // fill water
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var col = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var row = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = row * size.x + col;
+            if (cellTypes[idx] == AIR_CELL)
+                cellTypes[idx] = WATER_CELL;
+        }
         
         // transfer particle velocity to grid
         // notation: U = grid horizontal velocity, V = grid vertical velocity
@@ -154,6 +230,27 @@ public class CPUCompute
             cellWeights[vi[1]].y += vw[1];
             cellWeights[vi[2]].y += vw[2];
             cellWeights[vi[3]].y += vw[3];
+        }
+        
+        for (int i = 0; i < numCells; i++)
+        {
+            // normalize weights
+            if (cellWeights[i].x > 0)
+                cellVelocities[i].x /= cellWeights[i].x;
+            if (cellWeights[i].y > 0)
+                cellVelocities[i].y /= cellWeights[i].y;
+            
+            // restore solid cell velocities
+            var col = i % size.x;
+            var row = i / size.x;
+            var isSolid = IsSolidCell(cellTypes[i]);
+            var leftIsSolid = col > 0 && IsSolidCell(cellTypes[i - 1]);
+            var bottomIsSolid = row > 0 && IsSolidCell(cellTypes[i - size.x]);
+
+            if (isSolid || leftIsSolid)
+                cellVelocities[i].x = prevCellVelocities[i].x;
+            if (isSolid || bottomIsSolid)
+                cellVelocities[i].y = prevCellVelocities[i].y;
         }
     }
 
@@ -259,7 +356,7 @@ public class CPUCompute
         }
     }
 
-    public void PushApartParticlesPure(float2[] particlePositions)
+    public void PushApartParticles(float2[] particlePositions)
     {
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
@@ -337,58 +434,6 @@ public class CPUCompute
                             particlePositions[i] -= diff * s;
                             particlePositions[id] += diff * s;
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    public void PushApartParticles(float2[] particlePositions, int[] lookupKeys, int[] lookupValues, int[] startIndices)
-    {
-        var numParticles = particlePositions.Length;
-        var size = simulation.numCells;
-
-        for (int i = 0; i < numParticles; i++)
-        {
-            var pos = particlePositions[i];
-            var px = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
-            var py = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
-            var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, size.x - 1);
-            var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, size.y - 1);
-            var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, size.x - 1);
-            var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, size.y - 1);
-
-            for (var x = x0; x <= x1; x++)
-            {
-                for (var y = y0; y <= y1; y++)
-                {
-                    // verify the cell contains particles
-                    var cellIdx = y * size.x + x;
-                    var j = startIndices[cellIdx];
-                    if (j == -1) continue;
-
-                    for (; j < numParticles; j++)
-                    {
-                        // stop iterating if we hit a different cell
-                        var otherCell = lookupKeys[j];
-                        if (otherCell != cellIdx) break;
-
-                        // check that particle is not self
-                        var qid = lookupValues[j];
-                        if (qid == i) continue;
-                        
-                        // check if there's overlap
-                        var qpos = particlePositions[qid];
-                        var dist = Vector2.Distance(qpos, pos);
-                        var minDist = 2 * simulation.particleRadius;
-                        if (dist > minDist) continue;
-                        
-                        // adjust for overlap
-                        var offset = pos - qpos;
-                        var dir = offset / dist;
-                        var strength = (minDist - dist) / 2;
-                        particlePositions[i] += dir * strength;
-                        particlePositions[j] -= dir * strength;
                     }
                 }
             }

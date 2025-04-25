@@ -153,7 +153,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b27c0a0a0c654b042966a3c2e25a57c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  timeScale: 2
+  timeScale: 3
   fixedTimeStep: 0
   iterationsPerFrame: 3
   gravity: -9.81

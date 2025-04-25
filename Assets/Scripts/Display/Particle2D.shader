@@ -19,7 +19,7 @@ Shader "Custom/Particle2D"
             #include "UnityCG.cginc"
 
             StructuredBuffer<float2> particleVelocities;
-            StructuredBuffer<float2> positions;
+            StructuredBuffer<float2> particlePositions;
 
             float scale;
             float particleRadius;
@@ -44,7 +44,7 @@ Shader "Custom/Particle2D"
             {
                 // find object coords
                 const float3 boundCorner = float3(-boundsSize / 2, 0);
-                const float3 centerWorld = boundCorner + float3(positions[instanceID], 0) * float3(cellSize, 0);
+                const float3 centerWorld = boundCorner + float3(particlePositions[instanceID], 0) * float3(cellSize, 0);
                 const float3 worldVertPos = centerWorld + mul(unity_ObjectToWorld, v.vertex * scale);
                 const float3 objectVertPos = mul(unity_WorldToObject, float4(worldVertPos.xyz, 1));
 
@@ -58,7 +58,7 @@ Shader "Custom/Particle2D"
                 o.radius = objectSize.x;
 
                 // hide out of bounds particles
-                const float2 pos = positions[instanceID];
+                const float2 pos = particlePositions[instanceID];
                 const float minX = 1 - particleRadius;
                 const float maxX = numCols - 1 + particleRadius;
                 const float minY = 1 - particleRadius;

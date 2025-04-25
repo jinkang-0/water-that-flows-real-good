@@ -13,7 +13,6 @@ public class Initializer : MonoBehaviour
     public struct SpawnData
     {
         public int[] cellTypes;
-        public float[] cellWeights;
         public float2[] cellVelocities;
         public float2[] positions;
         public float2[] particleVelocities;
@@ -22,7 +21,6 @@ public class Initializer : MonoBehaviour
         {
             // note: in C#, arrays are initialized to default values (not garbage) (it's 0)
             cellTypes = new int[numCells];
-            cellWeights = new float[numCells];
             positions = new float2[numParticles];
             cellVelocities = new float2[numCells];
             particleVelocities = new float2[numParticles];

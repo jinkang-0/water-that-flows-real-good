@@ -1,3 +1,4 @@
+using System;
 using BufferSorter;
 using UnityEngine;
 using Unity.Mathematics;
@@ -36,28 +37,13 @@ public class Simulation : MonoBehaviour
     private float restDensity = 0;
 
     // buffers
-    public ComputeBuffer cellTypeBuffer { get; private set; }
-    public DoubleBuffer<float2> cellVelocityBuffer { get; private set; }
-    public ComputeBuffer cellWeightBuffer { get; private set; }
-    public DoubleBuffer<float2> positionBuffer { get; private set; }
-    public ComputeBuffer particleVelocityBuffer { get; private set; }
-    public ComputeBuffer lookupKeyBuffer { get; private set; }
-    public ComputeBuffer lookupValBuffer { get; private set; }
-    public ComputeBuffer indexBuffer { get; private set; }
+    public int[] cellTypes { get; private set; }
+    public float2[] cellWeights { get; private set; }
+    public float2[] cellVelocities { get; private set; }
+    public float2[] particlePositions { get; private set; }
+    public float2[] particleVelocities { get; private set; }
     public float[] densityBuffer { get; private set; }
-
-    // kernel IDs
-    private int simulateParticlesKernel = 0;
-    private int userInputKernel = 1;
-    private int projectionKernel = 2;
-    private int emptyWaterKernel = 3;
-    private int fillWaterKernel = 4;
-    private int normalizeCellVelocityKernel = 5;
-    private int buildLookupKernel = 6;
-    private int buildIndexKernel = 7;
-    private int pushApartParticlesKernel = 8;
-    private int clearIndicesKernel = 9;
-
+    
     // state
     private bool isPaused;
     private bool pauseNextFrame;
@@ -66,18 +52,6 @@ public class Simulation : MonoBehaviour
     {
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
         
-        // find compute kernels
-        simulateParticlesKernel = compute.FindKernel("SimulateParticles");
-        userInputKernel = compute.FindKernel("UserInput");
-        projectionKernel = compute.FindKernel("Projection");
-        emptyWaterKernel = compute.FindKernel("EmptyWaterCells");
-        fillWaterKernel = compute.FindKernel("FillWaterCells");
-        normalizeCellVelocityKernel = compute.FindKernel("NormalizeCellVelocity");
-        buildLookupKernel = compute.FindKernel("BuildLookup");
-        buildIndexKernel = compute.FindKernel("BuildStartIndices");
-        pushApartParticlesKernel = compute.FindKernel("PushParticlesApart");
-        clearIndicesKernel = compute.FindKernel("ClearIndices");
-    
         // target fps
         float deltaTime = 1 / 60f;
         Time.fixedDeltaTime = deltaTime;
@@ -87,28 +61,17 @@ public class Simulation : MonoBehaviour
         totalCells = numCells.x * numCells.y;
 
         // create buffers
-        cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
-        cellWeightBuffer = ComputeHelper.CreateStructuredBuffer<float2>(totalCells);
-        cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
-        positionBuffer = new DoubleBuffer<float2>(numParticles);
-        particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
-        lookupKeyBuffer = ComputeHelper.CreateStructuredBuffer<int>(numParticles);
-        lookupValBuffer = ComputeHelper.CreateStructuredBuffer<int>(numParticles);
-        indexBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
+        cellTypes = new int[totalCells];
         densityBuffer = new float[totalCells];
+        cellWeights = new float2[totalCells];
+        cellVelocities = new float2[totalCells];
+        particlePositions = new float2[numParticles];
+        particleVelocities = new float2[numParticles];
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
         
-        // load buffers to compute shaders
-        ComputeHelper.SetBuffer(compute, cellTypeBuffer, "cellTypes", simulateParticlesKernel, userInputKernel, projectionKernel, emptyWaterKernel, fillWaterKernel, normalizeCellVelocityKernel);
-        ComputeHelper.SetBuffer(compute, cellWeightBuffer, "cellWeights", emptyWaterKernel, normalizeCellVelocityKernel);
-        ComputeHelper.SetBuffer(compute, particleVelocityBuffer, "particleVelocities", simulateParticlesKernel);
-        ComputeHelper.SetBuffer(compute, lookupKeyBuffer, "particleLookupKeys", buildLookupKernel, buildIndexKernel, pushApartParticlesKernel);
-        ComputeHelper.SetBuffer(compute, lookupValBuffer, "particleLookupValues", buildLookupKernel, buildIndexKernel, pushApartParticlesKernel);
-        ComputeHelper.SetBuffer(compute, indexBuffer, "startIndices", buildIndexKernel, pushApartParticlesKernel, clearIndicesKernel);
-
         // set compute shader constants
         compute.SetInt("totalCells", totalCells);
         compute.SetInt("numParticles", numParticles);
@@ -165,139 +128,32 @@ public class Simulation : MonoBehaviour
         // run steps
         for (int i = 0; i < iterationsPerFrame; i++)
         {
-            RunSimulationStep();
+            RunSimulationStep(timeStep);
             SimulationStepCompleted?.Invoke();
         }
     }
 
     // run one step
-    private void RunSimulationStep()
+    private void RunSimulationStep(float deltaTime)
     {
         // simulate particle physics
-        ComputeHelper.SetBuffer(compute, positionBuffer.bufferRead, "particlePositionsIn", simulateParticlesKernel, buildLookupKernel, buildIndexKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: simulateParticlesKernel);
+        cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
         
-        // build HashGrid lookup
-        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildLookupKernel);
-        // sorter.Sort(lookupValBuffer, lookupKeyBuffer, false);
-        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: clearIndicesKernel);
-        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildIndexKernel);
-        
-        // move particles apart
-        // for (int i = 0; i < 2; i++)
-        // {
-        //     ComputeHelper.SetBuffer(compute, positionBuffer.bufferRead, "particlePositionsIn", pushApartParticlesKernel);
-        //     ComputeHelper.SetBuffer(compute, positionBuffer.bufferWrite, "particlePositionsOut", pushApartParticlesKernel);
-        //     ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pushApartParticlesKernel);
-        //     positionBuffer.Swap();
-        // }
-        PushParticlesApart();
+        cpuCompute.PushApartParticles(particlePositions);
 
-        // setup for velocity transfer
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", emptyWaterKernel);
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", emptyWaterKernel);
-        ComputeHelper.SetBuffer(compute, positionBuffer.bufferRead, "particlePositionsIn", fillWaterKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: emptyWaterKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: fillWaterKernel);
+        cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
+
+        restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
         
-        // transfer velocity from particle to grid
-        VelocityTransferParticle();
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
         
-        // normalize cell velocity based on weights, complete velocity transfer
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", normalizeCellVelocityKernel);
-        ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", normalizeCellVelocityKernel);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: normalizeCellVelocityKernel);
-        cellVelocityBuffer.Swap();
-        
-        // compute densities
-        ComputeDensities();
-        
-        // solve incompressibility
-        SolveIncompressibility();
-        cellVelocityBuffer.SyncToWrite();
-        
-        // transfer velocity from grid to particle
-        VelocityTransferGrid();
+        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
 
         // handle mouse interactions
         // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
         // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
         // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
         // cellVelocityBuffer.Swap();
-    }
-
-    private void VelocityTransferParticle()
-    {
-        // copy buffer to CPU
-        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferWrite, totalCells);
-        float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
-        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
-        float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
-        
-        // transfer velocity on CPU
-        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities);
-        
-        // copy buffer to GPU
-        cellVelocityBuffer.bufferWrite.SetData(cellVelocities);
-        cellWeightBuffer.SetData(cellWeights);
-        positionBuffer.bufferRead.SetData(particlePositions);
-        particleVelocityBuffer.SetData(particleVelocities);
-    }
-
-    private void VelocityTransferGrid()
-    {
-        // copy buffer to CPU
-        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
-        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
-        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
-        float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
-        
-        // transfer velocity on CPU
-        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
-        
-        // copy buffer to GPU
-        particleVelocityBuffer.SetData(particleVelocities);
-    }
-
-    private void PushParticlesApart()
-    {
-        // copy buffer to CPU
-        var particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
-        // var lookupKeys = CPUCompute.LoadIntBuffer(lookupKeyBuffer, numParticles);
-        // var lookupValues = CPUCompute.LoadIntBuffer(lookupValBuffer, numParticles);
-        // var startIndices = CPUCompute.LoadIntBuffer(indexBuffer, totalCells);
-        
-        // push particles apart
-        // for (int i = 0; i < 2; i++)
-        // {
-        //     cpuCompute.PushApartParticles(particlePositions, lookupKeys, lookupValues, startIndices);
-        // }
-        
-        cpuCompute.PushApartParticlesPure(particlePositions);
-        
-        // copy buffer to CPU
-        positionBuffer.bufferRead.SetData(particlePositions);
-    }
-
-    private void ComputeDensities()
-    {
-        // copy buffer to CPU
-        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
-        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
-
-        restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
-    }
-
-    private void SolveIncompressibility()
-    {
-        // copy buffers to CPU
-        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
-        float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
-        
-        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
-        
-        // copy buffer to GPU
-        cellVelocityBuffer.bufferRead.SetData(cellVelocities);
     }
 
     // update compute shader settings
@@ -333,13 +189,11 @@ public class Simulation : MonoBehaviour
     // reset buffer data to spawner data
     private void SetInitialBufferData()
     {
-        // update buffers
-        cellTypeBuffer.SetData(spawnData.cellTypes);
-        cellWeightBuffer.SetData(spawnData.cellWeights);
-        cellVelocityBuffer.bufferRead.SetData(spawnData.cellVelocities);
-        cellVelocityBuffer.bufferWrite.SetData(spawnData.cellVelocities);
-        particleVelocityBuffer.SetData(spawnData.particleVelocities);
-        positionBuffer.bufferRead.SetData(spawnData.positions);
+        Array.Copy(spawnData.cellTypes, cellTypes, totalCells);
+        Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
+        
+        Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
+        Array.Copy(spawnData.positions, particlePositions, numParticles);
     }
 
     private void HandleInput()
@@ -368,14 +222,6 @@ public class Simulation : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(cellTypeBuffer);
-        ComputeHelper.Release(particleVelocityBuffer);
-        ComputeHelper.Release(cellWeightBuffer);
-        ComputeHelper.Release(lookupKeyBuffer);
-        ComputeHelper.Release(lookupValBuffer);
-        ComputeHelper.Release(indexBuffer);
-        cellVelocityBuffer.Destroy();
-        positionBuffer.Destroy();
         sorter.Dispose();
     }
 
