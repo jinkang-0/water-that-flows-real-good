@@ -15,8 +15,6 @@ public class Display2D : MonoBehaviour
 
     private Material gridMaterial;
     private Material particleMaterial;
-    // private ComputeBuffer gridArgsBuffer;
-    // private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
     
@@ -46,8 +44,6 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetBuffer("particleVelocities", particleVelocityBuffer);
         particleMaterial.SetBuffer("particlePositions", particlePositionBuffer);
 
-        // gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
-        // particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
     }
@@ -99,8 +95,6 @@ public class Display2D : MonoBehaviour
 
     private void OnDestroy()
     {
-        // ComputeHelper.Release(gridArgsBuffer);
-        // ComputeHelper.Release(particleArgsBuffer);
         ComputeHelper.Release(cellTypeBuffer);
         ComputeHelper.Release(cellVelocityBuffer);
         ComputeHelper.Release(particlePositionBuffer);
