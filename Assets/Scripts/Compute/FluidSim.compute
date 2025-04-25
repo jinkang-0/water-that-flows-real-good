@@ -331,19 +331,20 @@ void PushParticlesApart(uint3 id : SV_DispatchThreadID)
     const int2 p0 = clampCell(cellPos - 1);
     const int2 p1 = clampCell(cellPos + 1);
 
-    for (int x = p0.x; x < p1.x; x++)
+    for (int x = p0.x; x <= p1.x; x++)
     {
-        for (int y = p0.y; y < p1.y; y++)
+        for (int y = p0.y; y <= p1.y; y++)
         {
             const uint cellId = idx(x, y);
-            if (cellId == -1) continue;
+            uint i = startIndices[cellId];
+            if (i == -1) continue;
     
             // loop over all particles in this cell
-            for (uint i = startIndices[cellId]; i < numParticles; i++)
+            for (; i < numParticles; i++)
             {
-                // if we've hit a different cell or the cell has no particles, then stop
+                // if we've hit a different cell, then stop
                 const uint currCell = particleLookupKeys[i];
-                if (currCell != cellId || currCell == -1) break;
+                if (currCell != cellId) break;
 
                 // check that the particle is not self
                 const uint qidx = particleLookupValues[i];
@@ -353,12 +354,12 @@ void PushParticlesApart(uint3 id : SV_DispatchThreadID)
                 const float2 qpos = particlePositionsIn[qidx];
                 const float dist = distance(pos, qpos);
                 const float minDist = 2 * particleRadius;
-                if (dist > minDist) continue;
+                if (dist > minDist || dist == 0) continue;
     
                 // adjust for particle collision
                 const float2 dir = normalize(pos - qpos);
                 const float strength = (minDist - dist) / 2;
-                particlePositionsOut[id.x] = particlePositionsOut[id.x] + dir * strength;
+                particlePositionsOut[id.x] += dir * strength;
             }
         }
     }

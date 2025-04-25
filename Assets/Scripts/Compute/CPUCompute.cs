@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Unity.Mathematics;
 
@@ -70,7 +71,7 @@ public class CPUCompute
         }
     }
 
-    private InterpolationData VelocityTransferInterpolation(float2 pos, float2 dPos)
+    private InterpolationData ParticleCellInterpolation(float2 pos, float2 dPos)
     {
         var size = simulation.numCells;
         
@@ -125,8 +126,8 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -168,8 +169,8 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -213,7 +214,7 @@ public class CPUCompute
         }
     }
 
-    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, int numIter, float overRelaxation)
+    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, float[] densities, float restDensity, int numIter, float overRelaxation)
     {
         var size = simulation.numCells;
         
@@ -241,17 +242,208 @@ public class CPUCompute
                     if (s == 0.0) continue;
                     
                     // compute divergence
-                    var d = cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
-                            cellVelocities[idx].y;
-                    var p = -d * overRelaxation / s;
+                    var d = (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
+                             cellVelocities[idx].y) / s;
                     
+                    // apply drift
+                    var compression = densities[idx] - restDensity;
+                    var divergence = overRelaxation * d - compression;
+
                     // solve incompressibility
-                    cellVelocities[idx].x -= p * sLeft;
-                    cellVelocities[right].x += p * sRight;
-                    cellVelocities[idx].y -= p * sBottom;
-                    cellVelocities[top].y += p * sTop;
+                    cellVelocities[idx].x += divergence * sLeft;
+                    cellVelocities[right].x -= divergence * sRight;
+                    cellVelocities[idx].y += divergence * sBottom;
+                    cellVelocities[top].y -= divergence * sTop;
                 }
             }
         }
+    }
+
+    public void PushApartParticlesPure(float2[] particlePositions)
+    {
+        var numParticles = particlePositions.Length;
+        var size = simulation.numCells;
+        var totalCells = size.x * size.y;
+
+        // count particles per cell
+        var counts = new int[totalCells];
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = y * size.x + x;
+            counts[idx]++;
+        }
+
+        var first = 0;
+        var prefixSum = new int[totalCells + 1];
+        for (int i = 0; i < totalCells; i++)
+        {
+            first += counts[i];
+            prefixSum[i] = first;
+        }
+
+        prefixSum[totalCells] = first;
+        
+        // fill particles
+        var indices = new int[numParticles];
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = y * size.x + x;
+            prefixSum[idx]--;
+            indices[prefixSum[idx]] = i;
+        }
+        
+        // push particles apart
+        var minDist = 2 * simulation.particleRadius;
+        var minDist2 = minDist * minDist;
+
+        for (int iter = 0; iter < 2; iter++)
+        {
+            for (int i = 0; i < numParticles; i++)
+            {
+                var pos = particlePositions[i];
+                var px = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+                var py = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+                var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, size.x - 1);
+                var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, size.y - 1);
+                var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, size.x - 1);
+                var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, size.y - 1);
+
+                for (int x = x0; x <= x1; x++)
+                {
+                    for (int y = y0; y <= y1; y++)
+                    {
+                        var cellIdx = y * size.x + x;
+                        var firstIdx = prefixSum[cellIdx];
+                        var lastIdx = prefixSum[cellIdx + 1];
+
+                        for (var j = firstIdx; j < lastIdx; j++)
+                        {
+                            var id = indices[j];
+                            if (id == i) continue;
+
+                            var pos2 = particlePositions[id];
+                            var diff = pos2 - pos;
+                            var d2 = Vector2.Dot(diff, diff);
+                            if (d2 > minDist2 || d2 == 0) continue;
+
+                            var d = Mathf.Sqrt(d2);
+                            var s = (minDist - d) / 2 / d;
+                            particlePositions[i] -= diff * s;
+                            particlePositions[id] += diff * s;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void PushApartParticles(float2[] particlePositions, int[] lookupKeys, int[] lookupValues, int[] startIndices)
+    {
+        var numParticles = particlePositions.Length;
+        var size = simulation.numCells;
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var px = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var py = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, size.x - 1);
+            var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, size.y - 1);
+            var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, size.x - 1);
+            var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, size.y - 1);
+
+            for (var x = x0; x <= x1; x++)
+            {
+                for (var y = y0; y <= y1; y++)
+                {
+                    // verify the cell contains particles
+                    var cellIdx = y * size.x + x;
+                    var j = startIndices[cellIdx];
+                    if (j == -1) continue;
+
+                    for (; j < numParticles; j++)
+                    {
+                        // stop iterating if we hit a different cell
+                        var otherCell = lookupKeys[j];
+                        if (otherCell != cellIdx) break;
+
+                        // check that particle is not self
+                        var qid = lookupValues[j];
+                        if (qid == i) continue;
+                        
+                        // check if there's overlap
+                        var qpos = particlePositions[qid];
+                        var dist = Vector2.Distance(qpos, pos);
+                        var minDist = 2 * simulation.particleRadius;
+                        if (dist > minDist) continue;
+                        
+                        // adjust for overlap
+                        var offset = pos - qpos;
+                        var dir = offset / dist;
+                        var strength = (minDist - dist) / 2;
+                        particlePositions[i] += dir * strength;
+                        particlePositions[j] -= dir * strength;
+                    }
+                }
+            }
+        }
+    }
+
+    public float ComputeRestDensity(int[] cellTypes, float[] densities)
+    {
+        var numCells = densities.Length;
+        var totalFluidDensity = 0f;
+        var numFluidCells = 0;
+
+        for (int i = 0; i < numCells; i++)
+        {
+            if (cellTypes[i] == WATER_CELL)
+            {
+                totalFluidDensity += densities[i];
+                numFluidCells++;
+            }
+        }
+
+        return numFluidCells > 0 ? totalFluidDensity / numFluidCells : 0;
+    }
+
+    public float ComputeDensities(int[] cellTypes, float2[] particlePositions, float[] densities, float restDensity)
+    {
+        var numParticles = particlePositions.Length;
+        var numCells = densities.Length;
+        
+        // clear densities
+        for (int i = 0; i < numCells; i++)
+        {
+            densities[i] = 0f;
+        }
+        
+        // add densities (assume particle density = 1)
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var intData = ParticleCellInterpolation(pos, new float2(-0.5f, -0.5f));
+            var cellIdx = intData.indices;
+            var w = intData.weights;
+
+            densities[cellIdx[0]] += w[0];
+            densities[cellIdx[1]] += w[1];
+            densities[cellIdx[2]] += w[2];
+            densities[cellIdx[3]] += w[3];
+        }
+        
+        // update rest density
+        if (restDensity == 0)
+        {
+            restDensity = ComputeRestDensity(cellTypes, densities);
+        }
+
+        return restDensity;
     }
 }

@@ -68,6 +68,8 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetVector("boundsSize", simulation.boundsSize);
         particleMaterial.SetVector("cellSize", simulation.cellSize);
         particleMaterial.SetFloat("particleRadius", simulation.particleRadius);
+        particleMaterial.SetInt("numCols", simulation.numCells.x);
+        particleMaterial.SetInt("numRows", simulation.numCells.y);
     }
 
     private void OnValidate()

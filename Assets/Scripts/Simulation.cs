@@ -33,6 +33,7 @@ public class Simulation : MonoBehaviour
     private Initializer.SpawnData spawnData;
     private CPUCompute cpuCompute;
     private Sorter sorter;
+    private float restDensity = 0;
 
     // buffers
     public ComputeBuffer cellTypeBuffer { get; private set; }
@@ -43,6 +44,7 @@ public class Simulation : MonoBehaviour
     public ComputeBuffer lookupKeyBuffer { get; private set; }
     public ComputeBuffer lookupValBuffer { get; private set; }
     public ComputeBuffer indexBuffer { get; private set; }
+    public float[] densityBuffer { get; private set; }
 
     // kernel IDs
     private int simulateParticlesKernel = 0;
@@ -76,7 +78,7 @@ public class Simulation : MonoBehaviour
         pushApartParticlesKernel = compute.FindKernel("PushParticlesApart");
         clearIndicesKernel = compute.FindKernel("ClearIndices");
     
-        // target 60fps
+        // target fps
         float deltaTime = 1 / 60f;
         Time.fixedDeltaTime = deltaTime;
         
@@ -92,7 +94,8 @@ public class Simulation : MonoBehaviour
         particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         lookupKeyBuffer = ComputeHelper.CreateStructuredBuffer<int>(numParticles);
         lookupValBuffer = ComputeHelper.CreateStructuredBuffer<int>(numParticles);
-        indexBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells + 1);
+        indexBuffer = ComputeHelper.CreateStructuredBuffer<int>(totalCells);
+        densityBuffer = new float[totalCells];
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
@@ -175,20 +178,21 @@ public class Simulation : MonoBehaviour
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: simulateParticlesKernel);
         
         // build HashGrid lookup
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildLookupKernel);
-        sorter.Sort(lookupValBuffer, lookupKeyBuffer, false);
-        ComputeHelper.Dispatch(compute, totalCells, kernelIndex: clearIndicesKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildIndexKernel);
+        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildLookupKernel);
+        // sorter.Sort(lookupValBuffer, lookupKeyBuffer, false);
+        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: clearIndicesKernel);
+        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: buildIndexKernel);
         
         // move particles apart
-        for (int i = 0; i < 2; i++)
-        {
-            ComputeHelper.SetBuffer(compute, positionBuffer.bufferRead, "particlePositionsIn", pushApartParticlesKernel);
-            ComputeHelper.SetBuffer(compute, positionBuffer.bufferWrite, "particlePositionsOut", pushApartParticlesKernel);
-            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pushApartParticlesKernel);
-            positionBuffer.Swap();
-        }
-        
+        // for (int i = 0; i < 2; i++)
+        // {
+        //     ComputeHelper.SetBuffer(compute, positionBuffer.bufferRead, "particlePositionsIn", pushApartParticlesKernel);
+        //     ComputeHelper.SetBuffer(compute, positionBuffer.bufferWrite, "particlePositionsOut", pushApartParticlesKernel);
+        //     ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pushApartParticlesKernel);
+        //     positionBuffer.Swap();
+        // }
+        PushParticlesApart();
+
         // setup for velocity transfer
         ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", emptyWaterKernel);
         ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", emptyWaterKernel);
@@ -204,6 +208,9 @@ public class Simulation : MonoBehaviour
         ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", normalizeCellVelocityKernel);
         ComputeHelper.Dispatch(compute, totalCells, kernelIndex: normalizeCellVelocityKernel);
         cellVelocityBuffer.Swap();
+        
+        // compute densities
+        ComputeDensities();
         
         // solve incompressibility
         SolveIncompressibility();
@@ -252,13 +259,42 @@ public class Simulation : MonoBehaviour
         particleVelocityBuffer.SetData(particleVelocities);
     }
 
+    private void PushParticlesApart()
+    {
+        // copy buffer to CPU
+        var particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
+        // var lookupKeys = CPUCompute.LoadIntBuffer(lookupKeyBuffer, numParticles);
+        // var lookupValues = CPUCompute.LoadIntBuffer(lookupValBuffer, numParticles);
+        // var startIndices = CPUCompute.LoadIntBuffer(indexBuffer, totalCells);
+        
+        // push particles apart
+        // for (int i = 0; i < 2; i++)
+        // {
+        //     cpuCompute.PushApartParticles(particlePositions, lookupKeys, lookupValues, startIndices);
+        // }
+        
+        cpuCompute.PushApartParticlesPure(particlePositions);
+        
+        // copy buffer to CPU
+        positionBuffer.bufferRead.SetData(particlePositions);
+    }
+
+    private void ComputeDensities()
+    {
+        // copy buffer to CPU
+        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer.bufferRead, numParticles);
+        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
+
+        restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
+    }
+
     private void SolveIncompressibility()
     {
         // copy buffers to CPU
         int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
         float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
         
-        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, 50, 1.9f);
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
         
         // copy buffer to GPU
         cellVelocityBuffer.bufferRead.SetData(cellVelocities);
