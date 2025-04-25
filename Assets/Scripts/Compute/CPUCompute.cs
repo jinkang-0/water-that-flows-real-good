@@ -79,10 +79,10 @@ public class CPUCompute
         var y = Mathf.Clamp(pos.y, 1, size.y - 1);
         
         // compute coords
-        var x0 = (uint)Mathf.Min(Mathf.FloorToInt(x - dPos.x), size.x - 2);
-        var x1 = (uint)Mathf.Min(x0 + 1, size.x - 2);
-        var y0 = (uint)Mathf.Min(Mathf.FloorToInt(y - dPos.y), size.y - 2);
-        var y1 = (uint)Mathf.Min(y0 + 1, size.y - 2);
+        var x0 = (uint)Mathf.Clamp(Mathf.FloorToInt(x - dPos.x), 0, size.x - 2);
+        var x1 = (uint)Mathf.Clamp(x0 + 1,  0,size.x - 2);
+        var y0 = (uint)Mathf.Clamp(Mathf.FloorToInt(y - dPos.y), 0, size.y - 2);
+        var y1 = (uint)Mathf.Clamp(y0 + 1, 0, size.y - 2);
         
         // get interpolation constants
         var tx = x - dPos.x - x0;

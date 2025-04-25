@@ -28,7 +28,6 @@ public class Display2D : MonoBehaviour
 
         particleMaterial = new Material(particleShader);
         particleMaterial.SetBuffer("particleVelocities", sim.particleVelocityBuffer);
-        particleMaterial.SetBuffer("positions", sim.positionBuffer);
 
         gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypeBuffer.count);
         particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
@@ -44,6 +43,7 @@ public class Display2D : MonoBehaviour
         UpdateSettings();
         
         gridMaterial.SetBuffer("cellVelocities", simulation.cellVelocityBuffer.bufferRead);
+        particleMaterial.SetBuffer("positions", simulation.positionBuffer.bufferRead);
         
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);

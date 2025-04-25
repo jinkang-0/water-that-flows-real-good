@@ -65,13 +65,13 @@ Shader "Custom/Grid2D"
                     o.color = terrainColor;
                 else if (cellTypes[instanceID] == 2)
                     o.color = stoneColor;
-                else
-                {
-                    const float2 vel = cellVelocities[instanceID];
-                    const float vy = min(max(abs(vel.y), 0), 255);
-                    const float vx = min(max(abs(vel.x), 0), 255);
-                    o.color = float4(vy, 0, vx, 1);
-                }
+                // else
+                // {
+                //     const float2 vel = cellVelocities[instanceID];
+                //     const float vy = min(max(abs(vel.y), 0), 255);
+                //     const float vx = min(max(abs(vel.x), 0), 255);
+                //     o.color = float4(vy, 0, vx, 1);
+                // }
                 
                 return o;
             }

@@ -142,10 +142,10 @@ public class Initializer : MonoBehaviour
             else
                 Debug.LogError("Failed To Read Level Image.");
             
-            // spawn particles in middle of screen
+            // spawn particles in block
             var rng = new Unity.Mathematics.Random(42);
-            var spread = 20f;
-            float2 center = new float2(gridSize.x, gridSize.y) / 2;
+            var spread = 60f;
+            float2 center = new float2(spread, spread) / 2 + 1;
             for (int i = 0; i < numParticles; i++)
             {
                 data.positions[i] = center + spread * (rng.NextFloat2() - 0.5f);

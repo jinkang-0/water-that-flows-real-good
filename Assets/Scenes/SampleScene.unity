@@ -164,6 +164,7 @@ MonoBehaviour:
   interactionRadius: 1
   interactionStrength: 10
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
+  sorterCompute: {fileID: 7200000, guid: 77640e95a943437e9f9faf9b1a5777da, type: 3}
   initializer: {fileID: 479015541}
   display: {fileID: 479015540}
 --- !u!4 &479015539
