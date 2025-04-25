@@ -15,8 +15,8 @@ public class Display2D : MonoBehaviour
 
     private Material gridMaterial;
     private Material particleMaterial;
-    private ComputeBuffer gridArgsBuffer;
-    private ComputeBuffer particleArgsBuffer;
+    // private ComputeBuffer gridArgsBuffer;
+    // private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
     
@@ -46,8 +46,8 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetBuffer("particleVelocities", particleVelocityBuffer);
         particleMaterial.SetBuffer("particlePositions", particlePositionBuffer);
 
-        gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
-        particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
+        // gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
+        // particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
     }
@@ -65,8 +65,8 @@ public class Display2D : MonoBehaviour
         particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
         
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, gridMaterial, bounds, simulation.cellTypes.Length);
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
     }
 
     private void UpdateSettings()
@@ -99,8 +99,8 @@ public class Display2D : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(gridArgsBuffer);
-        ComputeHelper.Release(particleArgsBuffer);
+        // ComputeHelper.Release(gridArgsBuffer);
+        // ComputeHelper.Release(particleArgsBuffer);
         ComputeHelper.Release(cellTypeBuffer);
         ComputeHelper.Release(cellVelocityBuffer);
         ComputeHelper.Release(particlePositionBuffer);
