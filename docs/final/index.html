@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- metadata -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- tab title -->
+    <title>Final Report | Interactive Fluid Simulation</title>
+
+    <!-- load icon -->
+    <link rel="shortcut icon" href="../favicon.ico" type="image/x-icon" />
+
+    <!-- load fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- load website styles -->
+    <link rel="stylesheet" href="../global.css" />
+    <link rel="stylesheet" href="../article.css" />
+    <link rel="stylesheet" href="../footer.css" />
+  </head>
+  <body>
+    <main>
+      <article>
+        <header>
+          <h1>Interactive Fluid Simulation</h1>
+          <h3>Final Report</h3>
+          <p class="gray">
+            Team: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
+          </p>
+          <div class="summary">
+            <b>Summary</b><br />
+            A real-time, interactive 2D fluid simulation with obstacles, mouse
+            interaction, fluid interactions, and minigames. Play with it in
+            real-time on the browser.
+          </div>
+          <p>
+            Webpage:
+            <a
+              href="https://jinkang-0.github.io/water-that-flows-real-good/proposal/"
+              >jinkang-0.github.io/water-that-flows-real-good/proposal/</a
+            >
+          </p>
+        </header>
+        <section>
+          <h2>Problem Description</h2>
+          <p>
+            We were inspired by the mobile game Where's My Water and wanted to
+            recreate it with different fluid types that can be interacted with
+            on the web.
+          </p>
+          <p>
+            We believe this is an important problem because it gives us a sense
+            of how fluid mechanics can be used to enhance realism in video
+            games. However, it is also a tough problem to tackle as fluid
+            mechanics involve lots of math and physics.
+          </p>
+          <p>
+            Fortunately, there are lots of great resources online to learn about
+            existing models of fluid mechanics. We will spend some time studying
+            different fluid simulation models to settle on a realistic
+            particle-like simulation that can be placed in a video game. We can
+            then implement it in Unity and extend it into a game. If time
+            allows, we can also apply shaders to add white splashes, making the
+            water more realistic.
+          </p>
+        </section>
+        <section>
+          <h2>Goals and Deliverables</h2>
+          <p>
+            For our final deliverable, we want to recreate a Where's My Water
+            clone using 2D fluid simulations, complete with obstacles, mouse
+            interactions, fluid interactions, and scoring. This will be
+            available as an interactive demo on the web.
+          </p>
+          <p>
+            To measure the quality of our system, we will use FPS as a key
+            metric. We want the simulation to run on smooth frame rates (ideally
+            60fps) on the web, using a modern laptop. Some question to answer:
+            is it possible to use 2D fluid simulations and still achieve smooth
+            frame rates in a video game? What other applications can we use
+            fluid simulations in?
+          </p>
+          <p>
+            We believe having a 2D fluid simulation model with some
+            interactivity will give us an A on the project. However, we aim to
+            pair this with a complete game with realistic water rendering and
+            different fluid interactions.
+          </p>
+        </section>
+        <section>
+          <h2>Schedule</h2>
+          <table>
+            <thead>
+              <tr>
+                <td>Time</td>
+                <td>Items</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <b>Week 0</b>
+                  <p>(Spring Break)</p>
+                </td>
+                <td>Project brainstorm and repo setup</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 1</b>
+                  <p>(Mar. 31 - Apr. 4)</p>
+                </td>
+                <td>Proposal website</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 2</b>
+                  <p>(Apr. 7 - Apr. 11)</p>
+                </td>
+                <td>Setup project in Unity, research & setup a model</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 3</b>
+                  <p>(Apr. 14 - Apr. 18)</p>
+                </td>
+                <td>Get the model working, make UI</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 4</b>
+                  <p>(Apr. 14 - Apr. 18)</p>
+                </td>
+                <td>
+                  Write milestone report, add mouse interactions & obstacles,
+                  scoring, different fluids (gases)
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 5</b>
+                  <p>(Apr. 21 - Apr. 25)</p>
+                </td>
+                <td>Testing and optimizations, textures</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Week 6</b>
+                  <p>(Apr. 28 - May 2)</p>
+                </td>
+                <td>Mixing fluids, textures</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Final Days</b>
+                  <p>(May 2 - May 5)</p>
+                </td>
+                <td>
+                  Debugging, tie up loose ends, export to web, write
+                  deliverables
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+        <section>
+          <h2>Resources</h2>
+          <p>
+            We will be using Unity to implement the project so we can export it
+            on the web for everyone to test out. Development will be done across
+            Windows, MacOS, and Linux operating systems.
+          </p>
+          <b>Helpful Resources</b>
+          <ul>
+            <li>
+              <a
+                href="https://youtu.be/rSKMYc1CQHE?si=xTG0WXi_AWpkNybU"
+                target="_blank"
+                >Sebastian Lague: Simulating Fluids</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/kOkfC5fLfgE?si=Uow-iHo_9-hMWghk"
+                target="_blank"
+                >Sebastian Lague: Rendering Fluids with Ray Marching</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/XmzBREkK8kY?si=VxxH-1ZRQ0JZLGOp"
+                target="_blank"
+                >Ten Minute Physics: FLIP Fluid Simulation</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/iKAVRgIrUOU?si=PN46nOBc3nEy25PU"
+                target="_blank"
+                >Ten Minute Physics: Eulerian Fluid Simulation</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://youtu.be/1R5WFZk86kE?si=hinpQOVwekvB_ict"
+                target="_blank"
+                >John Lin: Voxel Water Physics</a
+              >
+            </li>
+          </ul>
+        </section>
+      </article>
+    </main>
+
+    <footer>
+      <div>
+        <img src="../assets/184_david.png" alt="Fishy David" width="200" />
+        <p>Fishy David</p>
+      </div>
+      <div>
+        <img src="../assets/184_ann.png" alt="Fishy Ann" width="200" />
+        <p>Fishy Ann</p>
+      </div>
+      <div>
+        <img src="../assets/184_ben.png" alt="Fishy Ben" width="200" />
+        <p>Fishy Ben</p>
+      </div>
+      <div>
+        <img src="../assets/184_jinkang.png" alt="Fishy Jinkang" width="200" />
+        <p>Fishy Jinkang</p>
+      </div>
+    </footer>
+  </body>
+</html>
