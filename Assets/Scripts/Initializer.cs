@@ -13,7 +13,6 @@ public class Initializer : MonoBehaviour
     public struct SpawnData
     {
         public int[] cellTypes;
-        public float[] cellWeights;
         public float2[] cellVelocities;
         public float2[] positions;
         public float2[] particleVelocities;
@@ -22,7 +21,6 @@ public class Initializer : MonoBehaviour
         {
             // note: in C#, arrays are initialized to default values (not garbage) (it's 0)
             cellTypes = new int[numCells];
-            cellWeights = new float[numCells];
             positions = new float2[numParticles];
             cellVelocities = new float2[numCells];
             particleVelocities = new float2[numParticles];
@@ -142,10 +140,10 @@ public class Initializer : MonoBehaviour
             else
                 Debug.LogError("Failed To Read Level Image.");
             
-            // spawn particles in middle of screen
+            // spawn particles in block
             var rng = new Unity.Mathematics.Random(42);
-            var spread = 20f;
-            float2 center = new float2(gridSize.x, gridSize.y) / 2;
+            var spread = 60f;
+            float2 center = new float2(spread, spread) / 2 + 1;
             for (int i = 0; i < numParticles; i++)
             {
                 data.positions[i] = center + spread * (rng.NextFloat2() - 0.5f);

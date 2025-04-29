@@ -4,6 +4,10 @@
 #pragma kernel EmptyWaterCells
 #pragma kernel FillWaterCells
 #pragma kernel NormalizeCellVelocity
+#pragma kernel BuildLookup
+#pragma kernel BuildStartIndices
+#pragma kernel PushParticlesApart
+#pragma kernel ClearIndices
 
 static const int NumThreads = 64;
 
@@ -18,7 +22,11 @@ RWStructuredBuffer<float2> cellWeights;
 RWStructuredBuffer<float2> cellVelocitiesIn;
 RWStructuredBuffer<float2> cellVelocitiesOut;
 RWStructuredBuffer<float2> particleVelocities;
-RWStructuredBuffer<float2> particlePositions;
+RWStructuredBuffer<float2> particlePositionsIn;
+RWStructuredBuffer<float2> particlePositionsOut;
+RWStructuredBuffer<int> particleLookupKeys;
+RWStructuredBuffer<int> particleLookupValues;
+RWStructuredBuffer<int> startIndices;
 
 // settings
 float gravity;
@@ -97,12 +105,12 @@ void integrateParticle(uint id)
     particleVelocities[id.x] += deltaTime * float2(0, gravity);
 
     // apply velocities
-    particlePositions[id.x] += particleVelocities[id.x] * deltaTime;
+    particlePositionsIn[id.x] += particleVelocities[id.x] * deltaTime;
 }
 
 void handleParticleCollision(uint id)
 {
-    float2 pos = particlePositions[id];
+    float2 pos = particlePositionsIn[id];
 
     // handle wall collisions
     const float minX = particleRadius + 1;
@@ -134,7 +142,7 @@ void handleParticleCollision(uint id)
         particleVelocities[id].y = 0;
     }
 
-    particlePositions[id] = pos;
+    particlePositionsIn[id] = pos;
 }
 
 //
@@ -243,7 +251,7 @@ void FillWaterCells(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= numParticles) return;
 
-    const float2 pos = particlePositions[id.x];
+    const float2 pos = particlePositionsIn[id.x];
     const uint2 cellPos = cellContaining(pos);
     const uint cellIdx = idx(cellPos.x, cellPos.y);
     if (cellTypes[cellIdx] == AIR_CELL)
@@ -274,3 +282,86 @@ void NormalizeCellVelocity(uint3 id : SV_DispatchThreadID)
     if (isSolid || bottomIsSolid)
         cellVelocitiesOut[id.x].y = cellVelocitiesIn[id.x].y;
 }
+
+[numthreads(NumThreads, 1, 1)]
+void BuildLookup(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numParticles) return;
+
+    const float2 pos = particlePositionsIn[id.x];
+    const int2 cellPos = cellContaining(pos);
+    const int cellId = idx(cellPos.x, cellPos.y);
+    
+    particleLookupKeys[id.x] = cellId;
+    particleLookupValues[id.x] = id.x;
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ClearIndices(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+
+    startIndices[id.x] = -1;
+}
+
+[numthreads(NumThreads, 1, 1)]
+void BuildStartIndices(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numParticles) return;
+
+    const float2 pos = particlePositionsIn[id.x];
+    const int2 cellPos = cellContaining(pos);
+    const int cellId = idx(cellPos.x, cellPos.y);
+
+    if (id.x == 0 || particleLookupKeys[id.x - 1] != particleLookupKeys[id.x])
+    {
+        startIndices[cellId] = id.x;
+    }
+}
+
+[numthreads(NumThreads, 1, 1)]
+void PushParticlesApart(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numParticles) return;
+
+    const float2 pos = particlePositionsIn[id.x];
+    particlePositionsOut[id.x] = pos;
+
+    const int2 cellPos = cellContaining(pos);
+    const int2 p0 = clampCell(cellPos - 1);
+    const int2 p1 = clampCell(cellPos + 1);
+
+    for (int x = p0.x; x <= p1.x; x++)
+    {
+        for (int y = p0.y; y <= p1.y; y++)
+        {
+            const uint cellId = idx(x, y);
+            uint i = startIndices[cellId];
+            if (i == -1) continue;
+    
+            // loop over all particles in this cell
+            for (; i < numParticles; i++)
+            {
+                // if we've hit a different cell, then stop
+                const uint currCell = particleLookupKeys[i];
+                if (currCell != cellId) break;
+
+                // check that the particle is not self
+                const uint qidx = particleLookupValues[i];
+                if (qidx == id.x) continue;
+
+                // if no overlap, then there is no need to adjust for collision
+                const float2 qpos = particlePositionsIn[qidx];
+                const float dist = distance(pos, qpos);
+                const float minDist = 2 * particleRadius;
+                if (dist > minDist || dist == 0) continue;
+    
+                // adjust for particle collision
+                const float2 dir = normalize(pos - qpos);
+                const float strength = (minDist - dist) / 2;
+                particlePositionsOut[id.x] += dir * strength;
+            }
+        }
+    }
+}
+

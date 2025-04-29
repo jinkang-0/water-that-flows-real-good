@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Unity.Mathematics;
 
@@ -70,7 +71,7 @@ public class CPUCompute
         }
     }
 
-    private InterpolationData VelocityTransferInterpolation(float2 pos, float2 dPos)
+    private InterpolationData ParticleCellInterpolation(float2 pos, float2 dPos)
     {
         var size = simulation.numCells;
         
@@ -79,10 +80,10 @@ public class CPUCompute
         var y = Mathf.Clamp(pos.y, 1, size.y - 1);
         
         // compute coords
-        var x0 = (uint)Mathf.Min(Mathf.FloorToInt(x - dPos.x), size.x - 2);
-        var x1 = (uint)Mathf.Min(x0 + 1, size.x - 2);
-        var y0 = (uint)Mathf.Min(Mathf.FloorToInt(y - dPos.y), size.y - 2);
-        var y1 = (uint)Mathf.Min(y0 + 1, size.y - 2);
+        var x0 = (uint)Mathf.Clamp(Mathf.FloorToInt(x - dPos.x), 0, size.x - 2);
+        var x1 = (uint)Mathf.Clamp(x0 + 1,  0,size.x - 2);
+        var y0 = (uint)Mathf.Clamp(Mathf.FloorToInt(y - dPos.y), 0, size.y - 2);
+        var y1 = (uint)Mathf.Clamp(y0 + 1, 0, size.y - 2);
         
         // get interpolation constants
         var tx = x - dPos.x - x0;
@@ -114,9 +115,85 @@ public class CPUCompute
     //
     // fluid sim pipelines
     //
-    public void VelocityTransferParticle(float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, float2[] particleVelocities)
+    public void SimulateParticles(float2[] particlePositions, float2[] particleVelocities, float gravity, float deltaTime)
     {
         var numParticles = particlePositions.Length;
+
+        // integrate position & velocity
+        for (int i = 0; i < numParticles; i++)
+        {
+            particleVelocities[i].y += gravity * deltaTime;
+            particlePositions[i] += particleVelocities[i] * deltaTime;
+        }
+        
+        // handle bounding collision
+        var r = simulation.particleRadius;
+        var size = simulation.numCells;
+        
+        var minX = r + 1;
+        var maxX = size.x - r - 1;
+        var minY = r + 1;
+        var maxY = size.y - r - 1;
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            if (pos.x < minX)
+            {
+                pos.x = minX;
+                particleVelocities[i].x = 0;
+            }
+
+            if (pos.x > maxX)
+            {
+                pos.x = maxX;
+                particleVelocities[i].x = 0;
+            }
+
+            if (pos.y < minY)
+            {
+                pos.y = minY;
+                particleVelocities[i].y = 0;
+            }
+
+            if (pos.y > maxY)
+            {
+                pos.y = maxY;
+                particleVelocities[i].y = 0;
+            }
+
+            particlePositions[i] = pos;
+        }
+    }
+    
+    public void VelocityTransferParticle(int[] cellTypes, float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, float2[] particleVelocities)
+    {
+        var numParticles = particlePositions.Length;
+        var numCells = cellWeights.Length;
+        var size = simulation.numCells;
+        var prevCellVelocities = new float2[numCells];
+        
+        // empty water
+        for (int i = 0; i < numCells; i++)
+        {
+            if (cellTypes[i] == WATER_CELL)
+                cellTypes[i] = AIR_CELL;
+
+            cellWeights[i] = 0;
+            prevCellVelocities[i] = cellVelocities[i];
+            cellVelocities[i] = 0;
+        }
+        
+        // fill water
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var col = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var row = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = row * size.x + col;
+            if (cellTypes[idx] == AIR_CELL)
+                cellTypes[idx] = WATER_CELL;
+        }
         
         // transfer particle velocity to grid
         // notation: U = grid horizontal velocity, V = grid vertical velocity
@@ -125,8 +202,8 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -154,6 +231,27 @@ public class CPUCompute
             cellWeights[vi[2]].y += vw[2];
             cellWeights[vi[3]].y += vw[3];
         }
+        
+        for (int i = 0; i < numCells; i++)
+        {
+            // normalize weights
+            if (cellWeights[i].x > 0)
+                cellVelocities[i].x /= cellWeights[i].x;
+            if (cellWeights[i].y > 0)
+                cellVelocities[i].y /= cellWeights[i].y;
+            
+            // restore solid cell velocities
+            var col = i % size.x;
+            var row = i / size.x;
+            var isSolid = IsSolidCell(cellTypes[i]);
+            var leftIsSolid = col > 0 && IsSolidCell(cellTypes[i - 1]);
+            var bottomIsSolid = row > 0 && IsSolidCell(cellTypes[i - size.x]);
+
+            if (isSolid || leftIsSolid)
+                cellVelocities[i].x = prevCellVelocities[i].x;
+            if (isSolid || bottomIsSolid)
+                cellVelocities[i].y = prevCellVelocities[i].y;
+        }
     }
 
     public void VelocityTransferGrid(int[] cellTypes, float2[] cellVelocities, float2[] particlePositions, float2[] particleVelocities)
@@ -168,8 +266,8 @@ public class CPUCompute
             var pos = ClampPosToGrid(particlePositions[i]);
 
             // get interpolation data
-            var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -213,7 +311,7 @@ public class CPUCompute
         }
     }
 
-    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, int numIter, float overRelaxation)
+    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, float[] densities, float restDensity, int numIter, float overRelaxation)
     {
         var size = simulation.numCells;
         
@@ -241,17 +339,156 @@ public class CPUCompute
                     if (s == 0.0) continue;
                     
                     // compute divergence
-                    var d = cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
-                            cellVelocities[idx].y;
-                    var p = -d * overRelaxation / s;
+                    var d = (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
+                             cellVelocities[idx].y) / s;
                     
+                    // apply drift
+                    var compression = densities[idx] - restDensity;
+                    var divergence = overRelaxation * d - compression;
+
                     // solve incompressibility
-                    cellVelocities[idx].x -= p * sLeft;
-                    cellVelocities[right].x += p * sRight;
-                    cellVelocities[idx].y -= p * sBottom;
-                    cellVelocities[top].y += p * sTop;
+                    cellVelocities[idx].x += divergence * sLeft;
+                    cellVelocities[right].x -= divergence * sRight;
+                    cellVelocities[idx].y += divergence * sBottom;
+                    cellVelocities[top].y -= divergence * sTop;
                 }
             }
         }
+    }
+
+    public void PushApartParticles(float2[] particlePositions)
+    {
+        var numParticles = particlePositions.Length;
+        var size = simulation.numCells;
+        var totalCells = size.x * size.y;
+
+        // count particles per cell
+        var counts = new int[totalCells];
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = y * size.x + x;
+            counts[idx]++;
+        }
+
+        var first = 0;
+        var prefixSum = new int[totalCells + 1];
+        for (int i = 0; i < totalCells; i++)
+        {
+            first += counts[i];
+            prefixSum[i] = first;
+        }
+
+        prefixSum[totalCells] = first;
+        
+        // fill particles
+        var indices = new int[numParticles];
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+            var idx = y * size.x + x;
+            prefixSum[idx]--;
+            indices[prefixSum[idx]] = i;
+        }
+        
+        // push particles apart
+        var minDist = 2 * simulation.particleRadius;
+        var minDist2 = minDist * minDist;
+
+        for (int iter = 0; iter < 2; iter++)
+        {
+            for (int i = 0; i < numParticles; i++)
+            {
+                var pos = particlePositions[i];
+                var px = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
+                var py = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
+                var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, size.x - 1);
+                var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, size.y - 1);
+                var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, size.x - 1);
+                var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, size.y - 1);
+
+                for (int x = x0; x <= x1; x++)
+                {
+                    for (int y = y0; y <= y1; y++)
+                    {
+                        var cellIdx = y * size.x + x;
+                        var firstIdx = prefixSum[cellIdx];
+                        var lastIdx = prefixSum[cellIdx + 1];
+
+                        for (var j = firstIdx; j < lastIdx; j++)
+                        {
+                            var id = indices[j];
+                            if (id == i) continue;
+
+                            var pos2 = particlePositions[id];
+                            var diff = pos2 - pos;
+                            var d2 = Vector2.Dot(diff, diff);
+                            if (d2 > minDist2 || d2 == 0) continue;
+
+                            var d = Mathf.Sqrt(d2);
+                            var s = (minDist - d) / 2 / d;
+                            particlePositions[i] -= diff * s;
+                            particlePositions[id] += diff * s;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public float ComputeRestDensity(int[] cellTypes, float[] densities)
+    {
+        var numCells = densities.Length;
+        var totalFluidDensity = 0f;
+        var numFluidCells = 0;
+
+        for (int i = 0; i < numCells; i++)
+        {
+            if (cellTypes[i] == WATER_CELL)
+            {
+                totalFluidDensity += densities[i];
+                numFluidCells++;
+            }
+        }
+
+        return numFluidCells > 0 ? totalFluidDensity / numFluidCells : 0;
+    }
+
+    public float ComputeDensities(int[] cellTypes, float2[] particlePositions, float[] densities, float restDensity)
+    {
+        var numParticles = particlePositions.Length;
+        var numCells = densities.Length;
+        
+        // clear densities
+        for (int i = 0; i < numCells; i++)
+        {
+            densities[i] = 0f;
+        }
+        
+        // add densities (assume particle density = 1)
+        for (int i = 0; i < numParticles; i++)
+        {
+            var pos = particlePositions[i];
+            var intData = ParticleCellInterpolation(pos, new float2(-0.5f, -0.5f));
+            var cellIdx = intData.indices;
+            var w = intData.weights;
+
+            densities[cellIdx[0]] += w[0];
+            densities[cellIdx[1]] += w[1];
+            densities[cellIdx[2]] += w[2];
+            densities[cellIdx[3]] += w[3];
+        }
+        
+        // update rest density
+        if (restDensity == 0)
+        {
+            restDensity = ComputeRestDensity(cellTypes, densities);
+        }
+
+        return restDensity;
     }
 }
