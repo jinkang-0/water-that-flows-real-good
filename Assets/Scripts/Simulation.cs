@@ -18,10 +18,10 @@ public class Simulation : MonoBehaviour
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
-    public float interactionStrength;
 
     [Header("References")] 
     public Initializer initializer;
+    public ComputeShader gpuCompute;
     public Display2D display;
     
     // inferred variables
@@ -31,6 +31,12 @@ public class Simulation : MonoBehaviour
     private Initializer.SpawnData spawnData;
     private CPUCompute cpuCompute;
     private float restDensity = 0;
+    private Vector2 lastCursorPosition;
+    private Vector2 cursorPosition;
+    private ComputeBuffer cellTypeBuffer;
+    
+    // gpu compute shader kernels
+    private const int userInputKernel = 0;
 
     // buffers
     public int[] cellTypes { get; private set; }
@@ -49,7 +55,7 @@ public class Simulation : MonoBehaviour
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
         
         // target fps
-        float deltaTime = 1 / 60f;
+        float deltaTime = 1 / 120f;
         Time.fixedDeltaTime = deltaTime;
         
         // determine cell size
@@ -63,17 +69,25 @@ public class Simulation : MonoBehaviour
         cellVelocities = new float2[totalCells];
         particlePositions = new float2[numParticles];
         particleVelocities = new float2[numParticles];
+        cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<float>(totalCells);
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
+        
+        // set gpu compute variables
+        gpuCompute.SetFloat("interactionRadius", interactionRadius);
+        gpuCompute.SetInt("totalCells", totalCells);
+        gpuCompute.SetInts("size", new int[]{numCells.x, numCells.y});
+        gpuCompute.SetVector("cellSize", cellSize);
+        gpuCompute.SetVector("boundsSize", boundsSize);
 
         // initialize display
         display.Init(this);
         
         // initialize compute helpers
         cpuCompute = new CPUCompute(this);
-
+        
         isPaused = true;
     }
 
@@ -110,7 +124,7 @@ public class Simulation : MonoBehaviour
 
         // adjust delta time for shader
         float timeStep = frameTime / iterationsPerFrame * timeScale;
-        // UpdateSettings(timeStep);
+        // UpdateSettings();
 
         // run steps
         for (int i = 0; i < iterationsPerFrame; i++)
@@ -123,46 +137,49 @@ public class Simulation : MonoBehaviour
     // run one step
     private void RunSimulationStep(float deltaTime)
     {
-        // simulate particle physics
+        // integrate particles and handle collisions
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
-        
         cpuCompute.PushApartParticles(particlePositions);
+        cpuCompute.HandleObstacleCollisions(particlePositions, particleVelocities);
 
+        // solve for incompressibility and account for particle drift
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
-
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
-        
         cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
-        
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
 
         // handle mouse interactions
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
-        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-        // cellVelocityBuffer.Swap();
+        // cellTypeBuffer.SetData(cellTypes);
+        // ComputeHelper.SetBuffer(gpuCompute, cellTypeBuffer, "cellType", userInputKernel);
+        // ComputeHelper.Dispatch(gpuCompute, totalCells, kernelIndex: userInputKernel);
+        // cellTypeBuffer.GetData(cellTypes);
     }
 
     // update compute shader settings
-    // private void UpdateSettings(float deltaTime)
-    // {
-    //     // mouse interactions
-    //     if (Camera.main != null)
-    //     {
-    //         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-    //         int interactionType = 0;
-    //         bool isPush = Input.GetMouseButton(0);
-    //         bool isDelete = Input.GetMouseButton(1);
-    //         if (isPush)
-    //         {
-    //             interactionType = 1;
-    //         } 
-    //         else if (isDelete)
-    //         {
-    //             interactionType = 2;
-    //         }
-    //     }
-    // }
+    private void UpdateSettings()
+    {
+        // mouse interactions
+        if (Camera.main == null) return;
+        
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        int interactionType = 0;
+
+        if (Input.GetMouseButton(0))
+        {
+            lastCursorPosition = cursorPosition;
+            cursorPosition = mousePos;
+            interactionType = 1;
+        }
+        else
+        {
+            lastCursorPosition = mousePos;
+            cursorPosition = mousePos;
+        }
+
+        gpuCompute.SetVector("lastCursorPosition", lastCursorPosition);
+        gpuCompute.SetVector("cursorPosition", cursorPosition);
+        gpuCompute.SetInt("interactionType", interactionType);
+    }
 
     // reset buffer data to spawner data
     private void SetInitialBufferData()
@@ -196,6 +213,11 @@ public class Simulation : MonoBehaviour
             isPaused = true;
             SetInitialBufferData();
         }
+    }
+
+    private void OnDestroy()
+    {
+        cellTypeBuffer.Release();
     }
 
     private void OnDrawGizmos()

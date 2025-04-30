@@ -1,0 +1,41 @@
+#pragma kernel UserInput
+
+// static constants
+static const int NumThreads = 64;
+static const int AIR_CELL = 0;
+static const int TERRAIN_CELL = 1;
+
+// constants
+uint totalCells;
+int2 size;
+float2 cellSize;
+float2 boundsSize;
+float interactionRadius;
+
+// buffers
+RWStructuredBuffer<float> cellType;
+
+// interaction variables
+int interactionType;
+float2 lastCursorPosition;
+float2 cursorPosition;
+
+[numthreads(NumThreads, 1, 1)]
+void UserInput(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= totalCells) return;
+    if (interactionType == 0) return;
+    if (cellType[id.x] != TERRAIN_CELL) return;
+
+    // get cell position
+    const int col = id.x % size.x;
+    const int row = id.x / size.x;
+
+    // check distance to radius
+    const float2 pos = (float2(col, row) + 0.5f) * cellSize - boundsSize / 2;
+    const float2 offset = cursorPosition - pos;
+    const float d2 = dot(offset, offset);
+    if (d2 > interactionRadius * interactionRadius) return;
+    
+    cellType[id.x] = AIR_CELL;
+}

@@ -61,7 +61,7 @@ public class Display2D : MonoBehaviour
         particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
         
-        Graphics.DrawMeshInstancedProcedural(mesh, 0, gridMaterial, bounds, simulation.cellTypes.Length);
+        // Graphics.DrawMeshInstancedProcedural(mesh, 0, gridMaterial, bounds, simulation.cellTypes.Length);
         Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
     }
 

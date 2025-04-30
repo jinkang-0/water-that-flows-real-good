@@ -5,7 +5,7 @@ Shader "Custom/Particle2D"
     }
     SubShader
     {
-        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
+        Tags { "RenderType"="Transparent" "Queue"="Overlay" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         
@@ -56,17 +56,6 @@ Shader "Custom/Particle2D"
                 o.pos = UnityObjectToClipPos(objectVertPos);
                 o.color = waterColor;
                 o.radius = objectSize.x;
-
-                // hide out of bounds particles
-                const float2 pos = particlePositions[instanceID];
-                const float minX = 1 - particleRadius;
-                const float maxX = numCols - 1 + particleRadius;
-                const float minY = 1 - particleRadius;
-                const float maxY = numRows - 1 + particleRadius;
-                if (pos.x < minX || pos.x > maxX || pos.y < minY || pos.y > maxY)
-                {
-                    o.color = float4(0, 0, 0, 0);
-                }
                 
                 return o;
             }

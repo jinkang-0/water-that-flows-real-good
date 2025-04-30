@@ -47,13 +47,6 @@ public class CPUCompute
         return (uint)(row * simulation.numCells.x + col);
     }
 
-    private float2 ClampPosToGrid(float2 pos)
-    {
-        pos.x = Mathf.Clamp(pos.x, 1, simulation.numCells.x - 1);
-        pos.y = Mathf.Clamp(pos.y, 1, simulation.numCells.y - 1);
-        return pos;
-    }
-
     private bool IsSolidCell(int type)
     {
         return type is STONE_CELL or TERRAIN_CELL;
@@ -71,7 +64,7 @@ public class CPUCompute
         }
     }
 
-    private InterpolationData ParticleCellInterpolation(float2 pos, float2 dPos)
+    private InterpolationData ParticleCellInterpolation(float2 pos, float2 dPos, int2 min, int2 max)
     {
         var size = simulation.numCells;
         
@@ -80,10 +73,10 @@ public class CPUCompute
         var y = Mathf.Clamp(pos.y, 1, size.y - 1);
         
         // compute coords
-        var x0 = (uint)Mathf.Clamp(Mathf.FloorToInt(x - dPos.x), 0, size.x - 2);
-        var x1 = (uint)Mathf.Clamp(x0 + 1,  0,size.x - 2);
-        var y0 = (uint)Mathf.Clamp(Mathf.FloorToInt(y - dPos.y), 0, size.y - 2);
-        var y1 = (uint)Mathf.Clamp(y0 + 1, 0, size.y - 2);
+        var x0 = (uint)Mathf.Clamp(Mathf.FloorToInt(x - dPos.x), min.x, max.x);
+        var x1 = (uint)Mathf.Clamp(x0 + 1,  min.x, max.x);
+        var y0 = (uint)Mathf.Clamp(Mathf.FloorToInt(y - dPos.y), min.y, max.y);
+        var y1 = (uint)Mathf.Clamp(y0 + 1, min.y, max.y);
         
         // get interpolation constants
         var tx = x - dPos.x - x0;
@@ -125,15 +118,20 @@ public class CPUCompute
             particleVelocities[i].y += gravity * deltaTime;
             particlePositions[i] += particleVelocities[i] * deltaTime;
         }
+    }
+
+    public void HandleObstacleCollisions(float2[] particlePositions, float2[] particleVelocities)
+    {
+        var numParticles = particlePositions.Length;
         
         // handle bounding collision
         var r = simulation.particleRadius;
         var size = simulation.numCells;
         
         var minX = r + 1;
-        var maxX = size.x - r - 1;
+        var maxX = size.x - 1 - r;
         var minY = r + 1;
-        var maxY = size.y - r - 1;
+        var maxY = size.y - 1 - r;
 
         for (int i = 0; i < numParticles; i++)
         {
@@ -171,6 +169,7 @@ public class CPUCompute
         var numParticles = particlePositions.Length;
         var numCells = cellWeights.Length;
         var size = simulation.numCells;
+        var sizeSub2 = new int2(size.x - 2, size.y - 2);
         var prevCellVelocities = new float2[numCells];
         
         // empty water
@@ -199,11 +198,10 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = ClampPosToGrid(particlePositions[i]);
-
             // get interpolation data
-            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
+            var pos = particlePositions[i];
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f), 0, sizeSub2);
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f), 0, sizeSub2);
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -258,16 +256,16 @@ public class CPUCompute
     {
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
+        var sizeSub2 = new int2(size.x - 2, size.y - 2);
         
         // transfer grid velocity to particles
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = ClampPosToGrid(particlePositions[i]);
-
             // get interpolation data
-            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
-            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f));
+            var pos = particlePositions[i];
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f), 0, sizeSub2);
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f, 0f), 0, sizeSub2);
 
             var ui = uInterpolation.indices;
             var uw = uInterpolation.weights;
@@ -339,18 +337,24 @@ public class CPUCompute
                     if (s == 0.0) continue;
                     
                     // compute divergence
-                    var d = (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
-                             cellVelocities[idx].y) / s;
+                    var d = cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
+                             cellVelocities[idx].y;
+
+                    // account for drift
+                    if (restDensity > 0f)
+                    {
+                        var p = Mathf.Max(0, densities[idx] - restDensity);
+                        d -= p;
+                    }
                     
-                    // apply drift
-                    var compression = densities[idx] - restDensity;
-                    var divergence = overRelaxation * d - compression;
+                    // normalize divergence
+                    var ds = d / s;
 
                     // solve incompressibility
-                    cellVelocities[idx].x += divergence * sLeft;
-                    cellVelocities[right].x -= divergence * sRight;
-                    cellVelocities[idx].y += divergence * sBottom;
-                    cellVelocities[top].y -= divergence * sTop;
+                    cellVelocities[idx].x += ds * sLeft;
+                    cellVelocities[right].x -= ds * sRight;
+                    cellVelocities[idx].y += ds * sBottom;
+                    cellVelocities[top].y -= ds * sTop;
                 }
             }
         }
@@ -359,76 +363,91 @@ public class CPUCompute
     public void PushApartParticles(float2[] particlePositions)
     {
         var numParticles = particlePositions.Length;
-        var size = simulation.numCells;
-        var totalCells = size.x * size.y;
+        
+        // need to uniformly partition space to perform fast neighbor particle search
+        // partition cell size has to be the same as the cell's diameter
+        var partitionSpacing = 2f * simulation.particleRadius;
+        var partitionSizeX = Mathf.CeilToInt(simulation.numCells.x / partitionSpacing);
+        var partitionSizeY = Mathf.CeilToInt(simulation.numCells.y / partitionSpacing);
+        var numPartitionCells = partitionSizeX * partitionSizeY;
+        var counts = new int[numPartitionCells];
+        var startIndices = new int[numPartitionCells + 1];
+        var indices = new int[numParticles];
 
         // count particles per cell
-        var counts = new int[totalCells];
         for (int i = 0; i < numParticles; i++)
         {
             var pos = particlePositions[i];
-            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
-            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
-            var idx = y * size.x + x;
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionSizeX - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionSizeY - 1);
+            var idx = y * partitionSizeX + x;
             counts[idx]++;
         }
 
-        var first = 0;
-        var prefixSum = new int[totalCells + 1];
-        for (int i = 0; i < totalCells; i++)
+        // compute prefix sums to build start index
+        int first = 0;
+        for (int i = 0; i < numPartitionCells; i++)
         {
             first += counts[i];
-            prefixSum[i] = first;
+            startIndices[i] = first;
         }
 
-        prefixSum[totalCells] = first;
+        startIndices[numPartitionCells] = first;
         
-        // fill particles
-        var indices = new int[numParticles];
+        // partition particles
         for (int i = 0; i < numParticles; i++)
         {
             var pos = particlePositions[i];
-            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
-            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
-            var idx = y * size.x + x;
-            prefixSum[idx]--;
-            indices[prefixSum[idx]] = i;
+            var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionSizeX - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionSizeY - 1);
+            var idx = y * partitionSizeX + x;
+            startIndices[idx]--;
+            indices[startIndices[idx]] = i;
         }
         
         // push particles apart
-        var minDist = 2 * simulation.particleRadius;
+        var minDist = 2f * simulation.particleRadius;
         var minDist2 = minDist * minDist;
 
         for (int iter = 0; iter < 2; iter++)
         {
             for (int i = 0; i < numParticles; i++)
             {
+                // clamp position
                 var pos = particlePositions[i];
-                var px = Mathf.Clamp(Mathf.FloorToInt(pos.x), 0, size.x - 1);
-                var py = Mathf.Clamp(Mathf.FloorToInt(pos.y), 0, size.y - 1);
-                var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, size.x - 1);
-                var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, size.y - 1);
-                var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, size.x - 1);
-                var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, size.y - 1);
+                var px = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionSizeX - 1);
+                var py = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionSizeY - 1);
+                
+                // get lower and upper bounds for partitions
+                var x0 = Mathf.Clamp(Mathf.FloorToInt(px - 1), 0, partitionSizeX - 1);
+                var y0 = Mathf.Clamp(Mathf.FloorToInt(py - 1), 0, partitionSizeY - 1);
+                var x1 = Mathf.Clamp(Mathf.FloorToInt(px + 1), 0, partitionSizeX - 1);
+                var y1 = Mathf.Clamp(Mathf.FloorToInt(py + 1), 0, partitionSizeY - 1);
 
+                // check neighboring partition cells
                 for (int x = x0; x <= x1; x++)
                 {
                     for (int y = y0; y <= y1; y++)
                     {
-                        var cellIdx = y * size.x + x;
-                        var firstIdx = prefixSum[cellIdx];
-                        var lastIdx = prefixSum[cellIdx + 1];
+                        // lookup linked list of particles in partition cell
+                        var cellIdx = y * partitionSizeX + x;
+                        var firstIdx = startIndices[cellIdx];
+                        var lastIdx = startIndices[cellIdx + 1];
 
+                        // check overlap with neighbor particles
                         for (var j = firstIdx; j < lastIdx; j++)
                         {
+                            // ensure particle is not self
                             var id = indices[j];
                             if (id == i) continue;
 
+                            // check if there is overlap
                             var pos2 = particlePositions[id];
                             var diff = pos2 - pos;
                             var d2 = Vector2.Dot(diff, diff);
                             if (d2 > minDist2 || d2 == 0) continue;
 
+                            // push apart particles
                             var d = Mathf.Sqrt(d2);
                             var s = (minDist - d) / 2 / d;
                             particlePositions[i] -= diff * s;
@@ -462,6 +481,7 @@ public class CPUCompute
     {
         var numParticles = particlePositions.Length;
         var numCells = densities.Length;
+        var sizeSub1 = new int2(simulation.numCells.x - 1, simulation.numCells.y - 1);
         
         // clear densities
         for (int i = 0; i < numCells; i++)
@@ -473,7 +493,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             var pos = particlePositions[i];
-            var intData = ParticleCellInterpolation(pos, new float2(-0.5f, -0.5f));
+            var intData = ParticleCellInterpolation(pos, 0.5f, 0, sizeSub1);
             var cellIdx = intData.indices;
             var w = intData.weights;
 

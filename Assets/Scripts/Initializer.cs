@@ -156,7 +156,7 @@ public class Initializer : MonoBehaviour
             data.cellTypes[i] = 2;
             data.cellTypes[gridSize.x * (gridSize.y - 1) + i] = 2;
         }
-
+        
         for (int i = 1; i < gridSize.y - 1; i++)
         {
             data.cellTypes[gridSize.x * i] = 2;
