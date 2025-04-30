@@ -81,12 +81,11 @@ public class Display2D : MonoBehaviour
         gridMaterial.SetInt("numCols", simulation.numCells.x);
         gridMaterial.SetInt("numRows", simulation.numCells.y);
         gridMaterial.SetVector("boundsSize", simulation.boundsSize);
-        gridMaterial.SetVector("cellSize", simulation.cellSize);
+        gridMaterial.SetFloat("cellSize", simulation.cellSize);
         
         particleMaterial.SetColor("waterColor", waterColor);
         particleMaterial.SetFloat("scale", scale);
         particleMaterial.SetVector("boundsSize", simulation.boundsSize);
-        particleMaterial.SetVector("cellSize", simulation.cellSize);
         particleMaterial.SetFloat("particleRadius", simulation.particleRadius);
         particleMaterial.SetInt("numCols", simulation.numCells.x);
         particleMaterial.SetInt("numRows", simulation.numCells.y);

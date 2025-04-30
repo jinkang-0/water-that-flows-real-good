@@ -153,18 +153,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b27c0a0a0c654b042966a3c2e25a57c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  timeScale: 3
+  timeScale: 1
   fixedTimeStep: 0
-  iterationsPerFrame: 3
-  gravity: -9.81
-  boundsSize: {x: 16, y: 9}
-  numCells: {x: 128, y: 72}
+  iterationsPerFrame: 1
+  maxBounds: {x: 16, y: 9}
+  cellResolution: 72
   numParticles: 5000
-  particleRadius: 0.5
+  particleDensity: 3
+  gravity: -9.81
+  stiffness: 1
+  overRelaxation: 1.9
+  incompressibilityIterations: 50
   interactionRadius: 1
-  interactionStrength: 10
   compute: {fileID: 7200000, guid: 7c842b8ec2b09474fb0413d34f10429c, type: 3}
-  sorterCompute: {fileID: 7200000, guid: 77640e95a943437e9f9faf9b1a5777da, type: 3}
   initializer: {fileID: 479015541}
   display: {fileID: 479015540}
 --- !u!4 &479015539

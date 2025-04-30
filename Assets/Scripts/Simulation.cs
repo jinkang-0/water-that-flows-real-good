@@ -5,30 +5,34 @@ using Unity.Mathematics;
 
 public class Simulation : MonoBehaviour
 {
-    public event System.Action SimulationStepCompleted;
-
-    [Header("Simulation Settings")] 
+    [Header("Scene Settings")] 
     public float timeScale = 1;
     public bool fixedTimeStep;
     public int iterationsPerFrame;
-    public float gravity = -9.81f;
-    public Vector2 boundsSize;
-    public Vector2Int numCells;
+    public Vector2 maxBounds;
+    public int cellResolution;
     public int numParticles;
-    public float particleRadius;
+    public float particleDensity;
+    
+    [Header("Simulation Settings")]
+    public float gravity = -9.81f;
+    public float stiffness = 1;
+    public float overRelaxation = 1.9f;
+    public int incompressibilityIterations = 50;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
-    public float interactionStrength;
 
     [Header("References")] 
     public ComputeShader compute;
-    public ComputeShader sorterCompute;
     public Initializer initializer;
     public Display2D display;
     
     // inferred variables
-    public Vector2 cellSize { get; private set; }
+    public Vector2Int numCells { get; private set; }
+    public float cellSize { get; private set; }
+    public Vector2 boundsSize { get; private set; }
+    public float particleRadius { get; private set; }
     private int totalCells;
     private int numVelocities;
     private Initializer.SpawnData spawnData;
@@ -57,8 +61,14 @@ public class Simulation : MonoBehaviour
         Time.fixedDeltaTime = deltaTime;
         
         // determine cell size
-        cellSize = boundsSize / numCells;
+        var limitingDimension = Mathf.Min(maxBounds.x, maxBounds.y);
+        cellSize = limitingDimension / cellResolution;
+        
+        // determine bounds
+        boundsSize = (Vector2)(Vector2Int.FloorToInt(maxBounds / cellSize)) * cellSize;
+        numCells = Vector2Int.FloorToInt(boundsSize / cellSize);
         totalCells = numCells.x * numCells.y;
+        particleRadius = cellSize / particleDensity;
 
         // create buffers
         cellTypes = new int[totalCells];
@@ -67,25 +77,18 @@ public class Simulation : MonoBehaviour
         cellVelocities = new float2[totalCells];
         particlePositions = new float2[numParticles];
         particleVelocities = new float2[numParticles];
+        
+        // compute.SetFloat("interactionInputRadius", interactionRadius);
 
         // initialize buffer data
-        spawnData = initializer.GetSpawnData(numCells, numParticles);
+        spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
         SetInitialBufferData();
-        
-        // set compute shader constants
-        compute.SetInt("totalCells", totalCells);
-        compute.SetInt("numParticles", numParticles);
-        compute.SetInts("size", new int[]{numCells.x, numCells.y});
-        compute.SetVector("cellSize", cellSize);
-        compute.SetFloat("interactionInputStrength", interactionStrength);
-        compute.SetFloat("particleRadius", particleRadius);
 
         // initialize display
         display.Init(this);
         
         // initialize compute helpers
         cpuCompute = new CPUCompute(this);
-        sorter = new Sorter(sorterCompute);
 
         isPaused = true;
     }
@@ -123,13 +126,12 @@ public class Simulation : MonoBehaviour
 
         // adjust delta time for shader
         float timeStep = frameTime / iterationsPerFrame * timeScale;
-        UpdateSettings(timeStep);
+        // UpdateSettings(timeStep);
 
         // run steps
         for (int i = 0; i < iterationsPerFrame; i++)
         {
             RunSimulationStep(timeStep);
-            SimulationStepCompleted?.Invoke();
         }
     }
 
@@ -138,52 +140,39 @@ public class Simulation : MonoBehaviour
     {
         // simulate particle physics
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
-        
         cpuCompute.PushApartParticles(particlePositions);
-
+        cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
+        
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
-
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
-        
-        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
-        
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity);
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
 
         // handle mouse interactions
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
         // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-        // cellVelocityBuffer.Swap();
     }
 
     // update compute shader settings
     private void UpdateSettings(float deltaTime)
     {
-        compute.SetFloat("deltaTime", deltaTime);
-        compute.SetFloat("gravity", gravity);
-        compute.SetVector("boundsSize", boundsSize);
-        
         // mouse interactions
-        if (Camera.main != null)
+        if (Camera.main == null) return;
+    
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        int interactionType = 0;
+        bool isPush = Input.GetMouseButton(0);
+        bool isDelete = Input.GetMouseButton(1);
+        if (isPush)
         {
-            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            int interactionType = 0;
-            bool isPush = Input.GetMouseButton(0);
-            bool isDelete = Input.GetMouseButton(1);
-            if (isPush)
-            {
-                interactionType = 1;
-            } 
-            else if (isDelete)
-            {
-                interactionType = 2;
-            }
-        
-            compute.SetVector("interactionInputPoint", mousePos);
-            compute.SetInt("interactionInputType", interactionType);
+            interactionType = 1;
+        } 
+        else if (isDelete)
+        {
+            interactionType = 2;
         }
-
-        compute.SetFloat("interactionInputRadius", interactionRadius);
+    
+        compute.SetVector("interactionInputPoint", mousePos);
+        compute.SetInt("interactionInputType", interactionType);
     }
 
     // reset buffer data to spawner data
@@ -220,25 +209,30 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
-    {
-        sorter.Dispose();
-    }
+    // private void OnDestroy()
+    // {
+    //     
+    // }
 
     private void OnDrawGizmos()
     {
         // draw simulation bounds
         Gizmos.color = new Color(0, 1, 0, 0.4f);
-        Gizmos.DrawWireCube(Vector2.zero, boundsSize);
+        Gizmos.DrawWireCube(Vector2.zero, maxBounds);
+        
+        // determine cell size
+        var limitingDimension = Mathf.Min(maxBounds.x, maxBounds.y);
+        var cs = limitingDimension / cellResolution;
+        var bounds = (Vector2)Vector2Int.FloorToInt(maxBounds / cs) * cs;
+        var n = Vector2Int.FloorToInt(bounds / cs);
 
         // draw cells
-        Vector2 size = boundsSize / numCells;
-        Vector2 lowerCorner = -boundsSize / 2;
-        for (int y = 0; y < numCells.y; y++)
+        Vector2 lowerCorner = -bounds / 2;
+        for (int y = 0; y < n.y; y++)
         {
-            for (int x = 0; x < numCells.x; x++)
+            for (int x = 0; x < n.x; x++)
             {
-                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*size, size);
+                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*cs, Vector3.one * cs);
             }
         }
 
