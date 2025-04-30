@@ -47,13 +47,6 @@ public class CPUCompute
         return (uint)(row * simulation.numCells.x + col);
     }
 
-    private float2 ClampPosToGrid(float2 pos)
-    {
-        pos.x = Mathf.Clamp(pos.x, 1, simulation.numCells.x - 1);
-        pos.y = Mathf.Clamp(pos.y, 1, simulation.numCells.y - 1);
-        return pos;
-    }
-
     private bool IsSolidCell(int type)
     {
         return type is STONE_CELL or TERRAIN_CELL;
@@ -125,6 +118,11 @@ public class CPUCompute
             particleVelocities[i].y += gravity * deltaTime;
             particlePositions[i] += particleVelocities[i] * deltaTime;
         }
+    }
+
+    public void ConstrainToBounds(float2[] particlePositions, float2[] particleVelocities)
+    {
+        var numParticles = particlePositions.Length;
         
         // handle bounding collision
         var r = simulation.particleRadius;
@@ -199,7 +197,7 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = ClampPosToGrid(particlePositions[i]);
+            var pos = particlePositions[i];
 
             // get interpolation data
             var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
@@ -263,7 +261,7 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            var pos = ClampPosToGrid(particlePositions[i]);
+            var pos = particlePositions[i];
 
             // get interpolation data
             var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f));
@@ -311,9 +309,12 @@ public class CPUCompute
         }
     }
 
-    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, float[] densities, float restDensity, int numIter, float overRelaxation)
+    public void SolveIncompressibility(float2[] cellVelocities, int[] cellTypes, float[] densities, float restDensity)
     {
         var size = simulation.numCells;
+        var numIter = simulation.incompressibilityIterations;
+        var overRelaxation = simulation.overRelaxation;
+        var stiffness = simulation.stiffness;
         
         for (int i = 0; i < numIter; i++)
         {
@@ -339,12 +340,18 @@ public class CPUCompute
                     if (s == 0.0) continue;
                     
                     // compute divergence
-                    var d = (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
-                             cellVelocities[idx].y) / s;
+                    var d = overRelaxation * (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
+                             cellVelocities[idx].y);
+                    
+                    // handle drift
+                    if (restDensity > 0f)
+                    {
+                        var p = Mathf.Max(0, densities[idx] - restDensity);
+                        d -= p * stiffness;
+                    }
                     
                     // apply drift
-                    var compression = densities[idx] - restDensity;
-                    var divergence = overRelaxation * d - compression;
+                    var divergence = d / s;
 
                     // solve incompressibility
                     cellVelocities[idx].x += divergence * sLeft;
@@ -473,7 +480,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             var pos = particlePositions[i];
-            var intData = ParticleCellInterpolation(pos, new float2(-0.5f, -0.5f));
+            var intData = ParticleCellInterpolation(pos, 0.5f);
             var cellIdx = intData.indices;
             var w = intData.weights;
 

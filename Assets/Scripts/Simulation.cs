@@ -5,25 +5,26 @@ using Unity.Mathematics;
 
 public class Simulation : MonoBehaviour
 {
-    public event System.Action SimulationStepCompleted;
-
-    [Header("Simulation Settings")] 
+    [Header("Scene Settings")] 
     public float timeScale = 1;
     public bool fixedTimeStep;
     public int iterationsPerFrame;
-    public float gravity = -9.81f;
     public Vector2 boundsSize;
     public Vector2Int numCells;
     public int numParticles;
     public float particleRadius;
+    
+    [Header("Simulation Settings")]
+    public float gravity = -9.81f;
+    public float stiffness = 1;
+    public float overRelaxation = 1.9f;
+    public int incompressibilityIterations = 50;
 
     [Header("Interaction Settings")] 
     public float interactionRadius;
-    public float interactionStrength;
 
     [Header("References")] 
     public ComputeShader compute;
-    public ComputeShader sorterCompute;
     public Initializer initializer;
     public Display2D display;
     
@@ -67,25 +68,18 @@ public class Simulation : MonoBehaviour
         cellVelocities = new float2[totalCells];
         particlePositions = new float2[numParticles];
         particleVelocities = new float2[numParticles];
+        
+        // compute.SetFloat("interactionInputRadius", interactionRadius);
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
         SetInitialBufferData();
-        
-        // set compute shader constants
-        compute.SetInt("totalCells", totalCells);
-        compute.SetInt("numParticles", numParticles);
-        compute.SetInts("size", new int[]{numCells.x, numCells.y});
-        compute.SetVector("cellSize", cellSize);
-        compute.SetFloat("interactionInputStrength", interactionStrength);
-        compute.SetFloat("particleRadius", particleRadius);
 
         // initialize display
         display.Init(this);
         
         // initialize compute helpers
         cpuCompute = new CPUCompute(this);
-        sorter = new Sorter(sorterCompute);
 
         isPaused = true;
     }
@@ -123,13 +117,12 @@ public class Simulation : MonoBehaviour
 
         // adjust delta time for shader
         float timeStep = frameTime / iterationsPerFrame * timeScale;
-        UpdateSettings(timeStep);
+        // UpdateSettings(timeStep);
 
         // run steps
         for (int i = 0; i < iterationsPerFrame; i++)
         {
             RunSimulationStep(timeStep);
-            SimulationStepCompleted?.Invoke();
         }
     }
 
@@ -138,52 +131,39 @@ public class Simulation : MonoBehaviour
     {
         // simulate particle physics
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
-        
         cpuCompute.PushApartParticles(particlePositions);
-
+        cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
+        
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
-
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
-        
-        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity, 50, 1.9f);
-        
+        cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity);
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
 
         // handle mouse interactions
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferRead, "cellVelocitiesIn", userInputKernel);
-        // ComputeHelper.SetBuffer(compute, cellVelocityBuffer.bufferWrite, "cellVelocitiesOut", userInputKernel);
         // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-        // cellVelocityBuffer.Swap();
     }
 
     // update compute shader settings
     private void UpdateSettings(float deltaTime)
     {
-        compute.SetFloat("deltaTime", deltaTime);
-        compute.SetFloat("gravity", gravity);
-        compute.SetVector("boundsSize", boundsSize);
-        
         // mouse interactions
-        if (Camera.main != null)
+        if (Camera.main == null) return;
+    
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        int interactionType = 0;
+        bool isPush = Input.GetMouseButton(0);
+        bool isDelete = Input.GetMouseButton(1);
+        if (isPush)
         {
-            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            int interactionType = 0;
-            bool isPush = Input.GetMouseButton(0);
-            bool isDelete = Input.GetMouseButton(1);
-            if (isPush)
-            {
-                interactionType = 1;
-            } 
-            else if (isDelete)
-            {
-                interactionType = 2;
-            }
-        
-            compute.SetVector("interactionInputPoint", mousePos);
-            compute.SetInt("interactionInputType", interactionType);
+            interactionType = 1;
+        } 
+        else if (isDelete)
+        {
+            interactionType = 2;
         }
-
-        compute.SetFloat("interactionInputRadius", interactionRadius);
+    
+        compute.SetVector("interactionInputPoint", mousePos);
+        compute.SetInt("interactionInputType", interactionType);
     }
 
     // reset buffer data to spawner data
@@ -220,10 +200,10 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
-    {
-        sorter.Dispose();
-    }
+    // private void OnDestroy()
+    // {
+    //     
+    // }
 
     private void OnDrawGizmos()
     {
