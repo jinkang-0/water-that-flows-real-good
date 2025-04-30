@@ -243,7 +243,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: -0.7071068, z: 0.7071068, w: 0}
   m_LocalPosition: {x: -0.22965822, y: -0.0040784962, z: 1.5734081}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.3333334, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -262,8 +262,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   test_renderer: {fileID: 1128091627}
   terrain_source: {fileID: 2800000, guid: 8c524916856032e0fb8f16b3bd33bfa0, type: 3}
-  width: 128
-  height: 128
+  terrain_source_outside: {fileID: 2800000, guid: 3ddea6e53576d4ae88460edd0072095f, type: 3}
+  terrain_source_inside: {fileID: 2800000, guid: 63b866d995f0f5aa09466be58d7063e4, type: 3}
+  width: 800
+  height: 600
   circle_r_max: 10
   circle_count: 20
   distance_field: {fileID: 0}

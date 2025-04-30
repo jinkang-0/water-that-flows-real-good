@@ -13,6 +13,9 @@ public class SDFCollider : MonoBehaviour
 
     public Texture2D terrain_source;
 
+    public Texture2D terrain_source_outside;
+    public Texture2D terrain_source_inside;
+
     public int width = 128;
     public int height = 128;
 
@@ -80,7 +83,7 @@ public class SDFCollider : MonoBehaviour
     {
         int2[,] outside = new int2[terrain_source.width, terrain_source.height];
         int2[,] inside = new int2[terrain_source.width, terrain_source.height];
-        distance_field = new Texture2D(width, height, GraphicsFormat.R8G8_UNorm, 0, TextureCreationFlags.None);
+        distance_field = new Texture2D(width, height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
         distance_field.wrapMode = TextureWrapMode.Mirror;
 
         Material mat = test_renderer.material;
@@ -104,57 +107,69 @@ public class SDFCollider : MonoBehaviour
             }
         }
 
-        outside = JFPass(outside, 32);
-        outside = JFPass(outside, 16);
-        outside = JFPass(outside, 8);
-        outside = JFPass(outside, 4);
-        outside = JFPass(outside, 2);
-        outside = JFPass(outside, 1);
-        outside = JFPass(outside, 32);
-        outside = JFPass(outside, 16);
-        outside = JFPass(outside, 8);
-        outside = JFPass(outside, 4);
-        outside = JFPass(outside, 2);
-        outside = JFPass(outside, 1);
-
-        inside = JFPass(inside, 32);
-        inside = JFPass(inside, 16);
-        inside = JFPass(inside, 8);
-        inside = JFPass(inside, 4);
-        inside = JFPass(inside, 2);
-        inside = JFPass(inside, 1);
-        inside = JFPass(inside, 32);
-        inside = JFPass(inside, 16);
-        inside = JFPass(inside, 8);
-        inside = JFPass(inside, 4);
-        inside = JFPass(inside, 2);
-        inside = JFPass(inside, 1);
+        //outside = JFPass(outside, 32);
+        //outside = JFPass(outside, 16);
+        //outside = JFPass(outside, 8);
+        //outside = JFPass(outside, 4);
+        //outside = JFPass(outside, 2);
+        //outside = JFPass(outside, 1);
+        //outside = JFPass(outside, 32);
+        //outside = JFPass(outside, 16);
+        //outside = JFPass(outside, 8);
+        //outside = JFPass(outside, 4);
+        //outside = JFPass(outside, 2);
+        //outside = JFPass(outside, 1);
+        //
+        //inside = JFPass(inside, 32);
+        //inside = JFPass(inside, 16);
+        //inside = JFPass(inside, 8);
+        //inside = JFPass(inside, 4);
+        //inside = JFPass(inside, 2);
+        //inside = JFPass(inside, 1);
+        //inside = JFPass(inside, 32);
+        //inside = JFPass(inside, 16);
+        //inside = JFPass(inside, 8);
+        //inside = JFPass(inside, 4);
+        //inside = JFPass(inside, 2);
+        //inside = JFPass(inside, 1);
 
         for (int y = 0; y < width; ++y)
         {
             for (int x = 0; x < width; ++x)
             {
-                int x_other = x * terrain_source.width / width;
-                int y_other = y * terrain_source.height / height;
+                //int x_other = x * terrain_source.width / width;
+                //int y_other = y * terrain_source.height / height;
+                //
+                //int2 pos_outside = outside[x_other, y_other];
+                //int dxo = x_other - pos_outside.x;
+                //int dyo = y_other - pos_outside.y;
+                //float dist_outside = (float)Math.Sqrt(dxo * dxo + dyo * dyo);
+                //
+                //int2 pos_inside = inside[x_other, y_other];
+                //int dxi = x_other - pos_inside.x;
+                //int dyi = y_other - pos_inside.y;
+                //float dist_inside = (float)Math.Sqrt(dxi * dxi + dyi * dyi);
 
-                int2 pos_outside = outside[x_other, y_other];
-                int dxo = x_other - pos_outside.x;
-                int dyo = y_other - pos_outside.y;
-                float dist_outside = (float)Math.Sqrt(dxo * dxo + dyo * dyo);
+                float dist_outside = terrain_source_outside.GetPixel(x, y).r;
+                float dist_inside = terrain_source_inside.GetPixel(x, y).r;
 
-                int2 pos_inside = inside[x_other, y_other];
-                int dxi = x_other - pos_inside.x;
-                int dyi = y_other - pos_inside.y;
-                float dist_inside = (float)Math.Sqrt(dxi * dxi + dyi * dyi);
 
-                if (dist_inside < dist_outside)
+                if (dist_inside <= dist_outside)
                 {
-                    distance_field.SetPixel(x, y, new Color(0.5f + dist_outside / 80f, 0f, 0f));
+                    distance_field.SetPixel(x, y, new Color(dist_outside, 0f, 0f));
                 }
                 else
                 {
-                    distance_field.SetPixel(x, y, new Color(0.5f - dist_inside / 80f, 0f, 0f));
+                    distance_field.SetPixel(x, y, new Color(-dist_inside, 0f, 0f));
                 }
+                //if (dist_inside < dist_outside)
+                //{
+                //    distance_field.SetPixel(x, y, new Color(0.5f + dist_outside / 80f, 0f, 0f));
+                //}
+                //else
+                //{
+                //    distance_field.SetPixel(x, y, new Color(0.5f - dist_inside / 80f, 0f, 0f));
+                //}
                 //distance_field.SetPixel(x, y, new Color((float)position_stored.x / (float)terrain_source.width, (float)position_stored.y / (float)terrain_source.height, 0f));
             }
         }

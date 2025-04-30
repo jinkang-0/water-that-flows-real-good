@@ -51,10 +51,43 @@ Shader "Custom/test_sdf"
 
                 //return fixed4(col.r, col.r, col.r, 1.0);
 
-                if (col.r < 0.5)
+                if (col.r <= -6.0)
+                {
+                    return fixed4(0.0, 0.0, 1.0, 1.0);
+                }
+                else if (col.r <= -4.0)
+                {
+                    return fixed4(0.0, 1.0, 0.0, 1.0);
+                }
+                else if (col.r <= -2.0)
+                {
+                    return fixed4(1.0, 0.0, 0.0, 1.0);
+                }
+
+                else if (col.r < 0.0)
                 {
                     return fixed4(1.0, 1.0, 1.0, 1.0);
                 }
+
+                else if (col.r < 2.0)
+                {
+                    return fixed4(1.0, 0.0, 0.0, 1.0);
+                }
+                else if (col.r < 4.0)
+                {
+                    return fixed4(0.0, 1.0, 0.0, 1.0);
+                }
+                else if (col.r < 6.0)
+                {
+                    return fixed4(0.0, 0.0, 1.0, 1.0);
+                }
+                else if (col.r < 80.0)
+                {
+                    return fixed4(1.0, 0.0, 1.0, 1.0);
+                }
+
+                return fixed4(0.0, 0.0, 0.0, 1.0);
+
                 //// apply fog
                 //UNITY_APPLY_FOG(i.fogCoord, col);
                 return fixed4(0.0, 0.0, 0.0, 0.0);
