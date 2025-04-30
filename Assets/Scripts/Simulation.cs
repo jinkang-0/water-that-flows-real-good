@@ -9,10 +9,10 @@ public class Simulation : MonoBehaviour
     public float timeScale = 1;
     public bool fixedTimeStep;
     public int iterationsPerFrame;
-    public Vector2 boundsSize;
-    public Vector2Int numCells;
+    public Vector2 maxBounds;
+    public int cellResolution;
     public int numParticles;
-    public float particleRadius;
+    public float particleDensity;
     
     [Header("Simulation Settings")]
     public float gravity = -9.81f;
@@ -29,7 +29,10 @@ public class Simulation : MonoBehaviour
     public Display2D display;
     
     // inferred variables
-    public Vector2 cellSize { get; private set; }
+    public Vector2Int numCells { get; private set; }
+    public float cellSize { get; private set; }
+    public Vector2 boundsSize { get; private set; }
+    public float particleRadius { get; private set; }
     private int totalCells;
     private int numVelocities;
     private Initializer.SpawnData spawnData;
@@ -58,8 +61,14 @@ public class Simulation : MonoBehaviour
         Time.fixedDeltaTime = deltaTime;
         
         // determine cell size
-        cellSize = boundsSize / numCells;
+        var limitingDimension = Mathf.Min(maxBounds.x, maxBounds.y);
+        cellSize = limitingDimension / cellResolution;
+        
+        // determine bounds
+        boundsSize = (Vector2)(Vector2Int.FloorToInt(maxBounds / cellSize)) * cellSize;
+        numCells = Vector2Int.FloorToInt(boundsSize / cellSize);
         totalCells = numCells.x * numCells.y;
+        particleRadius = cellSize / particleDensity;
 
         // create buffers
         cellTypes = new int[totalCells];
@@ -72,7 +81,7 @@ public class Simulation : MonoBehaviour
         // compute.SetFloat("interactionInputRadius", interactionRadius);
 
         // initialize buffer data
-        spawnData = initializer.GetSpawnData(numCells, numParticles);
+        spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
         SetInitialBufferData();
 
         // initialize display
@@ -209,16 +218,21 @@ public class Simulation : MonoBehaviour
     {
         // draw simulation bounds
         Gizmos.color = new Color(0, 1, 0, 0.4f);
-        Gizmos.DrawWireCube(Vector2.zero, boundsSize);
+        Gizmos.DrawWireCube(Vector2.zero, maxBounds);
+        
+        // determine cell size
+        var limitingDimension = Mathf.Min(maxBounds.x, maxBounds.y);
+        var cs = limitingDimension / cellResolution;
+        var bounds = (Vector2)Vector2Int.FloorToInt(maxBounds / cs) * cs;
+        var n = Vector2Int.FloorToInt(bounds / cs);
 
         // draw cells
-        Vector2 size = boundsSize / numCells;
-        Vector2 lowerCorner = -boundsSize / 2;
-        for (int y = 0; y < numCells.y; y++)
+        Vector2 lowerCorner = -bounds / 2;
+        for (int y = 0; y < n.y; y++)
         {
-            for (int x = 0; x < numCells.x; x++)
+            for (int x = 0; x < n.x; x++)
             {
-                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*size, size);
+                Gizmos.DrawWireCube(lowerCorner + new Vector2(x+0.5f, y+0.5f)*cs, Vector3.one * cs);
             }
         }
 

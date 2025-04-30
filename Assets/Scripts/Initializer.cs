@@ -27,7 +27,7 @@ public class Initializer : MonoBehaviour
         }
     }
 
-    public SpawnData GetSpawnData(Vector2Int gridSize, int numParticles)
+    public SpawnData GetSpawnData(Vector2Int gridSize, int numParticles, float cellSize)
     {
         int totalCells = gridSize.x * gridSize.y;
         var data = new SpawnData(totalCells, numParticles);
@@ -120,13 +120,13 @@ public class Initializer : MonoBehaviour
                 
                 for (int j = 0; j < particlesPerCell; j++)
                 {
-                    data.positions[count] = gridPos + rng.NextFloat2();
+                    data.positions[count] = (gridPos + rng.NextFloat2()) * cellSize;
                     count++;
                 }
 
                 if (numExtras > 0)
                 {
-                    data.positions[count] = gridPos + rng.NextFloat2();
+                    data.positions[count] = (gridPos + rng.NextFloat2()) * cellSize;
                     count++;
                     numExtras--;
                 }
@@ -146,7 +146,7 @@ public class Initializer : MonoBehaviour
             float2 center = new float2(spread, spread) / 2 + 1;
             for (int i = 0; i < numParticles; i++)
             {
-                data.positions[i] = center + spread * (rng.NextFloat2() - 0.5f);
+                data.positions[i] = (center + spread * (rng.NextFloat2() - 0.5f)) * cellSize;
             }
         }
         

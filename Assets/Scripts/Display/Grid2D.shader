@@ -5,7 +5,7 @@ Shader "Custom/Grid2D"
     }
     SubShader
     {
-        Tags { "RenderType"="Transparent" "Queue"="Overlay" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         
@@ -24,7 +24,7 @@ Shader "Custom/Grid2D"
             float scale;
             int numRows;
             int numCols;
-            float2 cellSize;
+            float cellSize;
             float2 boundsSize;
             float4 terrainColor;
             float4 stoneColor;
@@ -47,12 +47,12 @@ Shader "Custom/Grid2D"
                 const int row = instanceID / numCols;
                 const int col = instanceID % numCols;
                 const float3 boundCorner = float3(-boundsSize / 2, 0);
-                const float3 centerWorld = boundCorner + float3(col + 0.5, row + 0.5, 0) * float3(cellSize, 0);
+                const float3 centerWorld = boundCorner + float3(col + 0.5, row + 0.5, 0) * float3(cellSize, cellSize, 0);
                 const float3 worldVertPos = centerWorld + mul(unity_ObjectToWorld, v.vertex * scale);
                 const float3 objectVertPos = mul(unity_WorldToObject, float4(worldVertPos.xyz, 1));
 
                 // determine cell size
-                const float3 objectSize = mul(unity_WorldToObject, float4(cellSize.xy, 1, 1));
+                const float3 objectSize = mul(unity_WorldToObject, float4(cellSize, cellSize, 1, 1));
                 
                 v2f o;
                 o.uv = v.texcoord;
