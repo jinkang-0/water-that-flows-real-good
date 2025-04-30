@@ -344,8 +344,8 @@ public class CPUCompute
                     if (s == 0.0) continue;
                     
                     // compute divergence
-                    var d = overRelaxation * (cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
-                             cellVelocities[idx].y);
+                    var d = cellVelocities[right].x - cellVelocities[idx].x + cellVelocities[top].y -
+                             cellVelocities[idx].y;
                     
                     // handle drift
                     if (restDensity > 0f)
@@ -355,7 +355,7 @@ public class CPUCompute
                     }
                     
                     // apply drift
-                    var divergence = d / s;
+                    var divergence = overRelaxation * d / s;
 
                     // solve incompressibility
                     cellVelocities[idx].x += divergence * sLeft;
