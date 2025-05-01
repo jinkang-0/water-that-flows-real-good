@@ -9,17 +9,22 @@ public class Display2D : MonoBehaviour
     public Mesh mesh;
     public Shader gridShader;
     public Shader particleShader;
+    public Shader terrainShader;
     public Color terrainColor;
     public Color stoneColor;
     public Color waterColor;
 
     private Material gridMaterial;
     private Material particleMaterial;
+    private Material terrainMaterial;
     private ComputeBuffer gridArgsBuffer;
     private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
     
+    // shared from simulation
+    private Texture2D terrainSDF;
+
     // buffers
     private ComputeBuffer cellTypeBuffer;
     private ComputeBuffer cellVelocityBuffer;
@@ -30,9 +35,13 @@ public class Display2D : MonoBehaviour
 
     public void Init(Simulation sim)
     {
+        this.terrainSDF = sim.terrainSDF;
+
         gridMaterial = new Material(gridShader);
         particleMaterial = new Material(particleShader);
-        
+        terrainMaterial = new Material(terrainShader);
+        terrainMaterial.SetTexture("_MainTex", terrainSDF);
+
         // initialize buffers
         var numCells = sim.numCells.x * sim.numCells.y;
         cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(numCells);
@@ -65,7 +74,8 @@ public class Display2D : MonoBehaviour
         particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
         
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
+        //Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
     }
 
@@ -89,6 +99,9 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetFloat("particleRadius", simulation.particleRadius);
         particleMaterial.SetInt("numCols", simulation.numCells.x);
         particleMaterial.SetInt("numRows", simulation.numCells.y);
+
+        terrainMaterial.SetFloat("scale", scale);
+        terrainMaterial.SetVector("boundsSize", simulation.boundsSize);
     }
 
     private void OnValidate()

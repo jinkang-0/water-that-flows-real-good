@@ -1,15 +1,46 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
+using UnityEngine.Experimental.Rendering;
 
 public class Initializer : MonoBehaviour
 {
     public Texture2D terrainTexture;
+
+    public Texture2D terrainTextureSDFOutside;
+    public Texture2D terrainTextureSDFInside;
+
     public Texture2D waterTexture;
 
     // this is the threshold to check if color is black or not
     private const float threshold = 0.01f;
 
+    public Texture2D GenerateSDF()
+    {
+        Texture2D terrainSDF = new Texture2D(terrainTextureSDFOutside.width, terrainTextureSDFOutside.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        terrainSDF.wrapMode = TextureWrapMode.Mirror;
+
+        for (int y = 0; y < terrainSDF.height; ++y)
+        {
+            for (int x = 0; x < terrainSDF.width; ++x)
+            {
+                float dist_outside = terrainTextureSDFOutside.GetPixel(x, y).r;
+                float dist_inside = terrainTextureSDFInside.GetPixel(x, y).r;
+
+                if (dist_inside <= dist_outside)
+                {
+                    terrainSDF.SetPixel(x, y, new Color(dist_outside, 0f, 0f));
+                }
+                else
+                {
+                    terrainSDF.SetPixel(x, y, new Color(-dist_inside, 0f, 0f));
+                }
+            }
+        }
+        terrainSDF.Apply();
+
+        return terrainSDF;
+    }
     public struct SpawnData
     {
         public int[] cellTypes;
