@@ -37,8 +37,8 @@ public class Simulation : MonoBehaviour
     public ComputeBuffer cellWeightBuffer { get; private set; }
     public ComputeBuffer positionBuffer { get; private set; }
     public ComputeBuffer particleVelocityBuffer { get; private set; }
-    public DoubleBuffer<bool> disabledParticlesBuffer { get; private set; }
-    public DoubleBuffer<bool> isCellBucketBuffer { get; private set; }
+    public DoubleBuffer<int> disabledParticlesBuffer { get; private set; }
+    public DoubleBuffer<int> isCellBucketBuffer { get; private set; }
 
     // kernel IDs
     private const int simulateParticlesKernel = 0;
@@ -70,8 +70,8 @@ public class Simulation : MonoBehaviour
         cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
         positionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
-        disabledParticlesBuffer = new DoubleBuffer<bool>(numParticles);
-        isCellBucketBuffer = new DoubleBuffer<bool>(totalCells);
+        disabledParticlesBuffer = new DoubleBuffer<int>(numParticles);
+        isCellBucketBuffer = new DoubleBuffer<int>(totalCells);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
@@ -196,8 +196,8 @@ public class Simulation : MonoBehaviour
         float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
-        bool[] disabledParticles = CPUCompute.LoadBoolBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
-        bool[] isCellBucket = CPUCompute.LoadBoolBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
+        int[] disabledParticles = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
+        int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
         
         // transfer velocity on CPU
         cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles, isCellBucket, cellTypes);
@@ -217,8 +217,8 @@ public class Simulation : MonoBehaviour
         float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
-        bool[] disabledParticles = CPUCompute.LoadBoolBuffer(disabledParticlesBuffer.bufferRead, numParticles);
-        bool[] isCellBucket = CPUCompute.LoadBoolBuffer(isCellBucketBuffer.bufferWrite, numParticles);
+        int[] disabledParticles = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
+        int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
         
         // transfer velocity on CPU
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles, isCellBucket);

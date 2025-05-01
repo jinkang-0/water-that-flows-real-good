@@ -125,7 +125,7 @@ public class CPUCompute
     // fluid sim pipelines
     //
     public void VelocityTransferParticle(float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, 
-    float2[] particleVelocities, bool[]disabledParticles, bool[]isCellBuffer, int[]cellTypes)
+    float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer, int[]cellTypes)
     {
         var numParticles = particlePositions.Length;
         
@@ -134,9 +134,9 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // disabling particles here
-            if (!disabledParticles[i]) {
+            if (disabledParticles[i] == 0) {
                 if (cellTypes[i] == BUCKET_CELL) {
-                    disabledParticles[i] = true;
+                    disabledParticles[i] = 1;
 
                 } else {
 
@@ -177,7 +177,7 @@ public class CPUCompute
         }
     }
 
-    public void VelocityTransferGrid(int[] cellTypes, float2[] cellVelocities, float2[] particlePositions, float2[] particleVelocities, bool[]disabledParticles, bool[]isCellBuffer)
+    public void VelocityTransferGrid(int[] cellTypes, float2[] cellVelocities, float2[] particlePositions, float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer)
     {
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
@@ -187,9 +187,9 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // disabling particles here
-            if (!disabledParticles[i]) {
+            if (disabledParticles[i] == 0) {
                 if (cellTypes[i] == BUCKET_CELL) {
-                    disabledParticles[i] = true;
+                    disabledParticles[i] = 1;
                 } else {
                     var pos = ClampPosToGrid(particlePositions[i]);
 
