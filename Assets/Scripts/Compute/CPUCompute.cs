@@ -12,7 +12,7 @@ public class CPUCompute
     private const int BUCKET_CELL = 4;
 
     // score tracker
-    public static int score = 0;
+    public int score = 0;
     
     //
     // helpers to work with unity compute buffer
