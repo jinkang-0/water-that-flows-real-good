@@ -251,7 +251,7 @@ public class Simulation : MonoBehaviour
     }
 
     // checks if the game is over
-    private bool GameWon(bool[]disabledParticles) {
+    private bool AreYaWinningYetSon(bool[]disabledParticles) {
         if (NumDisabledParticles(disabledParticles) >= 0.3 * numParticles) {
             return true;
         }
