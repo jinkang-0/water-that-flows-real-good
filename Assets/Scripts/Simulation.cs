@@ -27,6 +27,9 @@ public class Simulation : MonoBehaviour
     public ComputeShader compute;
     public Initializer initializer;
     public Display2D display;
+
+    // shared with display
+    public Texture2D terrainSDF;
     
     // inferred variables
     public Vector2Int numCells { get; private set; }
@@ -83,6 +86,8 @@ public class Simulation : MonoBehaviour
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
         SetInitialBufferData();
+
+        terrainSDF = initializer.GenerateSDF();
 
         // initialize display
         display.Init(this);
@@ -142,6 +147,7 @@ public class Simulation : MonoBehaviour
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
         cpuCompute.PushApartParticles(particlePositions);
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
+        cpuCompute.TerrainCollisions(particlePositions, particleVelocities);
         
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);

@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using Unity.Mathematics;
+using Unity.VisualScripting;
 
 public class CPUCompute
 {
@@ -106,6 +107,61 @@ public class CPUCompute
         return new InterpolationData(weights, indices);
     }
     
+    public void TerrainCollisions(float2[] particlePositions, float2[] particleVelocities)
+    {
+
+        for (int i = 0; i < particlePositions.Length; i++)
+        {
+            // position on SDF texture to sample
+            int px = (int)(simulation.terrainSDF.width * particlePositions[i].x / simulation.boundsSize.x);
+            int py = (int)(simulation.terrainSDF.height * particlePositions[i].y / simulation.boundsSize.y);
+
+            // distance to boundary
+            float dist = simulation.terrainSDF.GetPixel(px, py).r;
+
+            // get distance in world space (the distance textures is in terms of pixels)
+            float dist_world = dist * simulation.boundsSize.x / simulation.terrainSDF.width;
+
+            // the particle is inside the terrain
+            if (dist_world <= simulation.particleRadius)
+            {
+                /// calculate gradient ///
+                // distances at some small delta x and y
+                float dist_dx = simulation.terrainSDF.GetPixel(px + 1, py).r;
+                float dist_dy = simulation.terrainSDF.GetPixel(px, py + 1).r;
+                // change in distance for small changes in x and y
+                float ddx = dist_dx - dist;
+                float ddy = dist_dy - dist;
+                // direction of distance gradient
+                Vector2 grad = new Vector2(ddx, ddy);
+                grad.Normalize();
+
+
+                /// correct particle velocity ///
+                float2 vel = particleVelocities[i];
+                // check if particle velocity is facing into terrain
+                float dot = vel.x * grad.x + vel.y * grad.y;
+                if (dot < 0)
+                {
+                    // project the particle velocity onto the gradient
+                    float2 proj = grad * dot;
+                    // suptract the projection (so velocity does not face into terrain)
+                    vel -= proj;
+                    particleVelocities[i] = vel;
+                }
+
+                /// move particle out of terrain ///
+                // this is a pretty good approximation if the terrain isn't too concave
+                //        inside   \   outside
+                // o                )
+                //                 /  <-- terrain boundry
+                // |--------------->
+                //    move particle by distance and account for particle radius for particle radius
+                particlePositions[i] -= new float2(grad) * (dist_world - simulation.particleRadius);
+            }
+        }
+    }
+
     //
     // fluid sim pipelines
     //
