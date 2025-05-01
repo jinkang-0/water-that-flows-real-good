@@ -51,6 +51,9 @@ public class Simulation : MonoBehaviour
     // state
     private bool isPaused;
     private bool pauseNextFrame;
+
+    // score
+    public int score = 0;
     
     private void Start()
     {
@@ -196,17 +199,15 @@ public class Simulation : MonoBehaviour
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
         int[] disabledParticles = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
-        int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
         
         // transfer velocity on CPU
-        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles, isCellBucket);
+        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
         
         // copy buffer to GPU
         cellVelocityBuffer.bufferWrite.SetData(cellVelocities);
         cellWeightBuffer.SetData(cellWeights);
         positionBuffer.SetData(particlePositions);
         particleVelocityBuffer.SetData(particleVelocities);
-        disabledParticlesBuffer.bufferWrite.SetData(disabledParticles);
     }
 
     private void VelocityTransferGrid()
@@ -217,10 +218,9 @@ public class Simulation : MonoBehaviour
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
         int[] disabledParticles = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
-        int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
         
         // transfer velocity on CPU
-        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles, isCellBucket);
+        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles);
         
         // copy buffer to GPU
         particleVelocityBuffer.SetData(particleVelocities);
@@ -241,7 +241,17 @@ public class Simulation : MonoBehaviour
 
     // checks if the game is over
     private bool AreYaWinningYetSon() {
-        if (CPUCompute.score >= 0.3 * numParticles) {
+        float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
+        int[] disabledParticles = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
+        int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
+
+        Vector2 size = boundsSize / numCells;
+
+        score = cpuCompute.DisableParticles(particlePositions, disabledParticles, isCellBucket, score, cellSize, size);
+        disabledParticlesBuffer.bufferWrite.SetData(disabledParticles);
+        
+        if (score >= 0.3 * numParticles) {
+            
             return true;
         }
         return false;

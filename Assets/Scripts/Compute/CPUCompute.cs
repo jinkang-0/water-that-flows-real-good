@@ -11,8 +11,6 @@ public class CPUCompute
     private const int WATER_CELL = 3;
     private const int BUCKET_CELL = 4;
 
-    // score tracker
-    public int score = 0;
     
     //
     // helpers to work with unity compute buffer
@@ -127,8 +125,23 @@ public class CPUCompute
     //
     // fluid sim pipelines
     //
+    public int DisableParticles(float2[] particlePositions, int[]disabledParticles, int[]isCellBucket, int score, Vector2 cellSize, Vector2 size) {
+        for (int i = 0; i < disabledParticles.Length; i++) {
+            float2 pos = ClampPosToGrid(particlePositions[i]);
+            var col = Mathf.Clamp(Mathf.FloorToInt(pos.x / cellSize.x), 0, (int)size.x - 1);
+            var row = Mathf.Clamp(Mathf.FloorToInt(pos.y / cellSize.y), 0, (int)size.y - 1);
+            var idx = row * (int)size.x + col;
+            if (isCellBucket[idx] == 1 && disabledParticles[i] == 0) {
+                disabledParticles[i] = 1;
+                score++;
+            }
+        }
+        return score;
+    }
+
+
     public void VelocityTransferParticle(float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, 
-    float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer)
+    float2[] particleVelocities, int[]disabledParticles)
     {
         var numParticles = particlePositions.Length;
         
@@ -138,50 +151,43 @@ public class CPUCompute
         {
             // disabling particles here
             if (disabledParticles[i] == 0) {
-                if (isCellBuffer[i] == 1) {
-                    disabledParticles[i] = 1;
-                    score++;
+                var pos = ClampPosToGrid(particlePositions[i]);
 
-                } else {
+                // get interpolation data
+                var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
+                var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
+                var ui = uInterpolation.indices;
+                var uw = uInterpolation.weights;
+                var vi = vInterpolation.indices;
+                var vw = vInterpolation.weights;
                 
-                    var pos = ClampPosToGrid(particlePositions[i]);
+                var pv = particleVelocities[i];
+                
+                // initiate transfer
+                cellVelocities[ui[0]].x += pv.x * uw[0];
+                cellVelocities[ui[1]].x += pv.x * uw[1];
+                cellVelocities[ui[2]].x += pv.x * uw[2];
+                cellVelocities[ui[3]].x += pv.x * uw[3];
+                cellWeights[ui[0]].x += uw[0];
+                cellWeights[ui[1]].x += uw[1];
+                cellWeights[ui[2]].x += uw[2];
+                cellWeights[ui[3]].x += uw[3];
 
-                    // get interpolation data
-                    var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-                    var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
-
-                    var ui = uInterpolation.indices;
-                    var uw = uInterpolation.weights;
-                    var vi = vInterpolation.indices;
-                    var vw = vInterpolation.weights;
-                    
-                    var pv = particleVelocities[i];
-                    
-                    // initiate transfer
-                    cellVelocities[ui[0]].x += pv.x * uw[0];
-                    cellVelocities[ui[1]].x += pv.x * uw[1];
-                    cellVelocities[ui[2]].x += pv.x * uw[2];
-                    cellVelocities[ui[3]].x += pv.x * uw[3];
-                    cellWeights[ui[0]].x += uw[0];
-                    cellWeights[ui[1]].x += uw[1];
-                    cellWeights[ui[2]].x += uw[2];
-                    cellWeights[ui[3]].x += uw[3];
-
-                    cellVelocities[vi[0]].y += pv.y * vw[0];
-                    cellVelocities[vi[1]].y += pv.y * vw[1];
-                    cellVelocities[vi[2]].y += pv.y * vw[2];
-                    cellVelocities[vi[3]].y += pv.y * vw[3];
-                    cellWeights[vi[0]].y += vw[0];
-                    cellWeights[vi[1]].y += vw[1];
-                    cellWeights[vi[2]].y += vw[2];
-                    cellWeights[vi[3]].y += vw[3];
-                }
+                cellVelocities[vi[0]].y += pv.y * vw[0];
+                cellVelocities[vi[1]].y += pv.y * vw[1];
+                cellVelocities[vi[2]].y += pv.y * vw[2];
+                cellVelocities[vi[3]].y += pv.y * vw[3];
+                cellWeights[vi[0]].y += vw[0];
+                cellWeights[vi[1]].y += vw[1];
+                cellWeights[vi[2]].y += vw[2];
+                cellWeights[vi[3]].y += vw[3];
+                
             }
         }
     }
 
-    public void VelocityTransferGrid(int[] cellTypes, float2[] cellVelocities, float2[] particlePositions, float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer)
+    public void VelocityTransferGrid(int[] cellTypes, float2[] cellVelocities, float2[] particlePositions, float2[] particleVelocities, int[]disabledParticles)
     {
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
@@ -192,55 +198,50 @@ public class CPUCompute
         {
             // disabling particles here
             if (disabledParticles[i] == 0) {
-                if (isCellBuffer[i] == 1) {
-                    disabledParticles[i] = 1;
-                    score++;
-                } else {
-                    var pos = ClampPosToGrid(particlePositions[i]);
+                var pos = ClampPosToGrid(particlePositions[i]);
 
-                    // get interpolation data
-                    var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
-                    var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
+                // get interpolation data
+                var uInterpolation = VelocityTransferInterpolation(pos, new float2(0f, 0.5f));
+                var vInterpolation = VelocityTransferInterpolation(pos, new float2(0.5f, 0f));
 
-                    var ui = uInterpolation.indices;
-                    var uw = uInterpolation.weights;
-                    var vi = vInterpolation.indices;
-                    var vw = vInterpolation.weights;
+                var ui = uInterpolation.indices;
+                var uw = uInterpolation.weights;
+                var vi = vInterpolation.indices;
+                var vw = vInterpolation.weights;
 
-                    // check cell validity
-                    var uValid0 = cellTypes[ui[0]] != AIR_CELL || cellTypes[ui[0] - 1] != AIR_CELL ? 1f : 0f;
-                    var uValid1 = cellTypes[ui[1]] != AIR_CELL || cellTypes[ui[1] - 1] != AIR_CELL ? 1f : 0f;
-                    var uValid2 = cellTypes[ui[2]] != AIR_CELL || cellTypes[ui[2] - 1] != AIR_CELL ? 1f : 0f;
-                    var uValid3 = cellTypes[ui[3]] != AIR_CELL || cellTypes[ui[3] - 1] != AIR_CELL ? 1f : 0f;
+                // check cell validity
+                var uValid0 = cellTypes[ui[0]] != AIR_CELL || cellTypes[ui[0] - 1] != AIR_CELL ? 1f : 0f;
+                var uValid1 = cellTypes[ui[1]] != AIR_CELL || cellTypes[ui[1] - 1] != AIR_CELL ? 1f : 0f;
+                var uValid2 = cellTypes[ui[2]] != AIR_CELL || cellTypes[ui[2] - 1] != AIR_CELL ? 1f : 0f;
+                var uValid3 = cellTypes[ui[3]] != AIR_CELL || cellTypes[ui[3] - 1] != AIR_CELL ? 1f : 0f;
 
-                    var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] - size.x] != AIR_CELL ? 1f : 0f;
-                    var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] - size.x] != AIR_CELL ? 1f : 0f;
-                    var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] - size.x] != AIR_CELL ? 1f : 0f;
-                    var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] - size.x] != AIR_CELL ? 1f : 0f;
+                var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] - size.x] != AIR_CELL ? 1f : 0f;
+                var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] - size.x] != AIR_CELL ? 1f : 0f;
+                var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] - size.x] != AIR_CELL ? 1f : 0f;
+                var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] - size.x] != AIR_CELL ? 1f : 0f;
 
-                    // interpolate velocities
-                    var uWeight = uValid0 * uw[0] + uValid1 * uw[1] + uValid2 * uw[2] + uValid3 * uw[3];
-                    var vWeight = vValid0 * vw[0] + vValid1 * vw[1] + vValid2 * vw[2] + vValid3 * vw[3];
+                // interpolate velocities
+                var uWeight = uValid0 * uw[0] + uValid1 * uw[1] + uValid2 * uw[2] + uValid3 * uw[3];
+                var vWeight = vValid0 * vw[0] + vValid1 * vw[1] + vValid2 * vw[2] + vValid3 * vw[3];
 
-                    if (uWeight > 0f)
-                    {
-                        var uq0 = uValid0 * uw[0] * cellVelocities[ui[0]].x;
-                        var uq1 = uValid1 * uw[1] * cellVelocities[ui[1]].x;
-                        var uq2 = uValid2 * uw[2] * cellVelocities[ui[2]].x;
-                        var uq3 = uValid3 * uw[3] * cellVelocities[ui[3]].x;
-                        var picVx = (uq0 + uq1 + uq2 + uq3) / uWeight;
-                        particleVelocities[i].x = picVx;
-                    }
+                if (uWeight > 0f)
+                {
+                    var uq0 = uValid0 * uw[0] * cellVelocities[ui[0]].x;
+                    var uq1 = uValid1 * uw[1] * cellVelocities[ui[1]].x;
+                    var uq2 = uValid2 * uw[2] * cellVelocities[ui[2]].x;
+                    var uq3 = uValid3 * uw[3] * cellVelocities[ui[3]].x;
+                    var picVx = (uq0 + uq1 + uq2 + uq3) / uWeight;
+                    particleVelocities[i].x = picVx;
+                }
 
-                    if (vWeight > 0f)
-                    {
-                        var vq0 = vValid0 * vw[0] * cellVelocities[vi[0]].y;
-                        var vq1 = vValid1 * vw[1] * cellVelocities[vi[1]].y;
-                        var vq2 = vValid2 * vw[2] * cellVelocities[vi[2]].y;
-                        var vq3 = vValid3 * vw[3] * cellVelocities[vi[3]].y;
-                        var picVy = (vq0 + vq1 + vq2 + vq3) / vWeight;
-                        particleVelocities[i].y = picVy;
-                    }
+                if (vWeight > 0f)
+                {
+                    var vq0 = vValid0 * vw[0] * cellVelocities[vi[0]].y;
+                    var vq1 = vValid1 * vw[1] * cellVelocities[vi[1]].y;
+                    var vq2 = vValid2 * vw[2] * cellVelocities[vi[2]].y;
+                    var vq3 = vValid3 * vw[3] * cellVelocities[vi[3]].y;
+                    var picVy = (vq0 + vq1 + vq2 + vq3) / vWeight;
+                    particleVelocities[i].y = picVy;
                 }
             }
         }
