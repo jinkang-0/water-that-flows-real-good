@@ -239,6 +239,26 @@ public class Simulation : MonoBehaviour
         cellVelocityBuffer.bufferRead.SetData(cellVelocities);
     }
 
+    // counts the number of disabled particles
+    private int NumDisabledParticles(bool[]disabledParticles) {
+        int count = 0;
+        for (int i = 0; i < disabledParticles.Length; i++) {
+            if (disabledParticles[i]) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // checks if the game is over
+    private bool GameWon(bool[]disabledParticles) {
+        if (NumDisabledParticles(disabledParticles) >= 0.3 * numParticles) {
+            return true;
+        }
+        return false;
+    }
+    
+    
     // update compute shader settings
     private void UpdateSettings(float deltaTime)
     {
