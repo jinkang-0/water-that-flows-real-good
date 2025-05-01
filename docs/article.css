@@ -41,6 +41,10 @@ section {
   margin: 3rem 0;
 }
 
+section img {
+  width: 100%;
+}
+
 aside {
   margin: 1rem 0;
 }

@@ -33,149 +33,161 @@
           <p class="gray">
             Team: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
           </p>
-          <div class="summary">
-            <b>Summary</b><br />
-            A real-time, interactive 2D fluid simulation with obstacles, mouse
-            interaction, fluid interactions, and minigames. Play with it in
-            real-time on the browser.
-          </div>
           <p>
             Webpage:
             <a
-              href="https://jinkang-0.github.io/water-that-flows-real-good/proposal/"
-              >jinkang-0.github.io/water-that-flows-real-good/proposal/</a
+              href="https://jinkang-0.github.io/water-that-flows-real-good/final/"
+              >jinkang-0.github.io/water-that-flows-real-good/final/</a
             >
           </p>
         </header>
         <section>
-          <h2>Problem Description</h2>
+          <h2>Abstract</h2>
           <p>
-            We were inspired by the mobile game Where's My Water and wanted to
-            recreate it with different fluid types that can be interacted with
-            on the web.
-          </p>
-          <p>
-            We believe this is an important problem because it gives us a sense
-            of how fluid mechanics can be used to enhance realism in video
-            games. However, it is also a tough problem to tackle as fluid
-            mechanics involve lots of math and physics.
-          </p>
-          <p>
-            Fortunately, there are lots of great resources online to learn about
-            existing models of fluid mechanics. We will spend some time studying
-            different fluid simulation models to settle on a realistic
-            particle-like simulation that can be placed in a video game. We can
-            then implement it in Unity and extend it into a game. If time
-            allows, we can also apply shaders to add white splashes, making the
-            water more realistic.
+            This project explores an application of fluid simulations in an
+            interactive setting. We chose to create a demo inspired by a game
+            called Where's My Water, where the goal is to guide pockets of water
+            by carving a path in the terrain and having gravity lead our water
+            particles to the target destination.
           </p>
         </section>
         <section>
-          <h2>Goals and Deliverables</h2>
+          <h2>Technical Approach</h2>
+          <h3>Fluid Simultion</h3>
           <p>
-            For our final deliverable, we want to recreate a Where's My Water
-            clone using 2D fluid simulations, complete with obstacles, mouse
-            interactions, fluid interactions, and scoring. This will be
-            available as an interactive demo on the web.
+            For fluid simulation, we used a method called PIC/FLIP, which is a
+            hybrid of both particle-based (Lagrangian) and grid-based (Eulerian)
+            approaches. The PIC/FLIP method uses particle positions and
+            velocities to approximate the fluid volume, but uses a grid to solve
+            for fluid incompressibility, transfering velocities in between
+            mediums in each step. As a result, we obtain both the smooth
+            fluid-like motion from the Eulerian approach and the benefits of
+            finer details from particle positions.
           </p>
           <p>
-            To measure the quality of our system, we will use FPS as a key
-            metric. We want the simulation to run on smooth frame rates (ideally
-            60fps) on the web, using a modern laptop. Some question to answer:
-            is it possible to use 2D fluid simulations and still achieve smooth
-            frame rates in a video game? What other applications can we use
-            fluid simulations in?
+            We implemented the PIC/FLIP method described by Matthias Müller from
+            Ten Minute Physics. In the walkthrough, a choice was raised when
+            transferring velocities from the grid to the particles. A simple
+            bilinear interpolation will get us a PIC value, which is smoother
+            but loses detail. Alternatively, we can compute a bilinear
+            interpolation on the change in velocity, which maintains more
+            information about the individual particle movements but could have
+            too much detail. For our purposes, we preferred a smoother fluid
+            motion, which we felt was a better fit for our cartoonish art style,
+            so we only implemented PIC velocity transfer.
           </p>
           <p>
-            We believe having a 2D fluid simulation model with some
-            interactivity will give us an A on the project. However, we aim to
-            pair this with a complete game with realistic water rendering and
-            different fluid interactions.
+            Aside from the algorithms mentioned above, the PIC/FLIP method as
+            introduced by Matthias Müller also involves a drift solver, which
+            ensures that particles do not collide with each other. This involves
+            both accounting for drift in the incompressibility solver to
+            generate more outward force in dense areas, as well as a self
+            collision check.
+          </p>
+          <p>
+            A naive approach for self collision would involve a double for-loop
+            across all particles, twice. This would be far too slow for large
+            quantities of particles. To speed things up, we implemented a
+            spatial hashing algorithm also described by Matthias Müller. The
+            basic idea for this approach is to store a linked list of particles
+            contained within each cell, which would allow us to iterate over
+            only the particles contained in neighboring cells.
+          </p>
+          <p>
+            Under the hood, we keep track of three dense arrays to avoid the
+            memory overhead of linked lists, which you can find the
+            implementation details of in the spatial hashing presentation by
+            Matthias Müller. With this partitioning, if we engineer the cell
+            size in this grid to be at least as large as the diameter of each
+            particle, we can ensure that we only have to check the particles
+            contained in neighboring 3x3 cells for particle collisions. With
+            this, we can reduce the runtime from O(n^2) down to a swift O(n).
           </p>
         </section>
         <section>
-          <h2>Schedule</h2>
-          <table>
-            <thead>
-              <tr>
-                <td>Time</td>
-                <td>Items</td>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <b>Week 0</b>
-                  <p>(Spring Break)</p>
-                </td>
-                <td>Project brainstorm and repo setup</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 1</b>
-                  <p>(Mar. 31 - Apr. 4)</p>
-                </td>
-                <td>Proposal website</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 2</b>
-                  <p>(Apr. 7 - Apr. 11)</p>
-                </td>
-                <td>Setup project in Unity, research & setup a model</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 3</b>
-                  <p>(Apr. 14 - Apr. 18)</p>
-                </td>
-                <td>Get the model working, make UI</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 4</b>
-                  <p>(Apr. 14 - Apr. 18)</p>
-                </td>
-                <td>
-                  Write milestone report, add mouse interactions & obstacles,
-                  scoring, different fluids (gases)
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 5</b>
-                  <p>(Apr. 21 - Apr. 25)</p>
-                </td>
-                <td>Testing and optimizations, textures</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Week 6</b>
-                  <p>(Apr. 28 - May 2)</p>
-                </td>
-                <td>Mixing fluids, textures</td>
-              </tr>
-              <tr>
-                <td>
-                  <b>Final Days</b>
-                  <p>(May 2 - May 5)</p>
-                </td>
-                <td>
-                  Debugging, tie up loose ends, export to web, write
-                  deliverables
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <h3>Game Details</h3>
+          <p>
+            To achieve high definition fluid-terrain collisions, we implemented
+            signed distance fields for each level. A signed distance field
+            stores the distance to the nearest obstacle (or terrain) for each
+            pixel, its value being negative if it is within an object. This
+            distance field will be precomputed as a texture for each level,
+            which can be easily loaded and modified by the user during runtime.
+            After each particle integration step, we check the value of the
+            distance field at its position. If that value is negative, then we
+            take a step back by that distance so the particle ends up on the
+            surface of the terrain. [need further clarifications from Ben]
+          </p>
+          <p>
+            We wanted multiple levels to showcase different interactions with
+            fluid dynamics. We also wanted this level loading process to be
+            simple to tinker around by anyone with access to a digital art
+            program like Gimp. We decided the best way to approach this is to
+            take in a layer for each cell type (e.g. terrain, water, stone,
+            drain). We would then initialize the simulation by sampling the
+            texture and setting the appropriate cell type based on the alpha of
+            the layer. With this approach, we can use texture sampling in the
+            display to render custom terrain art that maps even to the destroyed
+            terrain.
+          </p>
+          <p>
+            For our game, we wanted to know how much fluid entered the target
+            area. We also want any fluid that enters the area to “disappear”
+            completely, so it won't interfere with any subsequent fluid flow.
+            This ended up simpler than imagined. We simply added a “drain cell”
+            that would disable any fluid particles that entered the cell and
+            increment a global counter for each particle. Once it reaches a
+            certain threshold, we would declare the level beaten.
+          </p>
         </section>
         <section>
-          <h2>Resources</h2>
+          <h3>Challenges</h3>
           <p>
-            We will be using Unity to implement the project so we can export it
-            on the web for everyone to test out. Development will be done across
-            Windows, MacOS, and Linux operating systems.
+            Initially, we planned to take advantage of the simplicity of compute
+            shaders in Unity to parallelize and speed up our simulation
+            computations. Unfortunately, we only realized half way through
+            implementation that the PIC/FLIP simulation would require a lot more
+            effort to parallelize as the velocity transfer required an
+            accumulation of velocities from nearby particles, which would
+            trigger data races when parallelized. There are certainly
+            workarounds, but we didn't think we would be able to achieve our MVP
+            in time if we were to pursue them, so we caved in and switched to an
+            all CPU approach. Fortunately, it is still reasonably fast.
           </p>
-          <b>Helpful Resources</b>
+          <p>
+            During development, we realized that the particles move extremely
+            slowly at a target of 60fps. Thinking it was due to a slow
+            computation, we simply switched to a larger time step to achieve a
+            similar speed as the FLIP website demo. Unfortunately, having a
+            larger delta time came at a cost, and we had to spend a long time
+            debugging an unstable simulation later down the line. We eventually
+            figured out that it was not an issue of slow computation, but rather
+            incorrect coordinate systems. The particles had been mapped to a
+            much larger space and simply projected down by the display code to
+            appear normal sized. Once we mapped the coordinates to scale with
+            the screen, everything moved smoothly along at a stable pace.
+          </p>
+        </section>
+        <section>
+          <h3>Lessons</h3>
+          <p>
+            Plan and design carefully before making a bold move, and don't make
+            any assumptions about the model.
+          </p>
+          <p>
+            Investigate further before settling down on a band-aid solution.
+            Tech debt will always come back to bite you.
+          </p>
+        </section>
+        <section>
+          <h2>Results</h2>
+          <figure>
+            <img src="../assets/fluid_sim.gif" />
+            <figcaption>The PIC/FLIP fluid simulation in a box.</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>References</h2>
           <ul>
             <li>
               <a
@@ -207,12 +219,29 @@
             </li>
             <li>
               <a
-                href="https://youtu.be/1R5WFZk86kE?si=hinpQOVwekvB_ict"
+                href="https://www.youtube.com/watch?v=D2M8jTtKi44"
                 target="_blank"
-                >John Lin: Voxel Water Physics</a
+                >Ten Minute Physics: Spatial Hashing</a
               >
             </li>
           </ul>
+        </section>
+        <section>
+          <h2>Contributions</h2>
+          <p>
+            <strong>Ann Basil:</strong> Level design, art assets, menu UI, level
+            selection.
+          </p>
+          <p>
+            <strong>Ben Bliss:</strong> Distance field generation,
+            particle-terrain collisions, terrain destruction.
+          </p>
+          <p>
+            <strong>David Hernandez:</strong> Level loading and scoring system.
+          </p>
+          <p>
+            <strong>Jinkang Fang:</strong> Fluid simulation and spatial hashing.
+          </p>
         </section>
       </article>
     </main>
