@@ -10,6 +10,9 @@ public class CPUCompute
     private const int STONE_CELL = 2;
     private const int WATER_CELL = 3;
     private const int BUCKET_CELL = 4;
+
+    // score tracker
+    public static int score = 0;
     
     //
     // helpers to work with unity compute buffer
@@ -137,6 +140,7 @@ public class CPUCompute
             if (disabledParticles[i] == 0) {
                 if (isCellBuffer[i] == 1) {
                     disabledParticles[i] = 1;
+                    score++;
 
                 } else {
 
@@ -190,6 +194,7 @@ public class CPUCompute
             if (disabledParticles[i] == 0) {
                 if (isCellBuffer[i] == 1) {
                     disabledParticles[i] = 1;
+                    score++;
                 } else {
                     var pos = ClampPosToGrid(particlePositions[i]);
 
