@@ -47,6 +47,8 @@ public class Initializer : MonoBehaviour
         public float2[] cellVelocities;
         public float2[] positions;
         public float2[] particleVelocities;
+        public int[] disabledParticles;
+        public int[] isCellBucket;
 
         public SpawnData(int numCells, int numParticles)
         {
@@ -55,6 +57,8 @@ public class Initializer : MonoBehaviour
             positions = new float2[numParticles];
             cellVelocities = new float2[numCells];
             particleVelocities = new float2[numParticles];
+            disabledParticles = new int[numParticles];
+            isCellBucket = new int[numCells];
         }
     }
 

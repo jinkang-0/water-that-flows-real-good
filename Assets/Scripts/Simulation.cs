@@ -1,5 +1,4 @@
 using System;
-using BufferSorter;
 using UnityEngine;
 using Unity.Mathematics;
 
@@ -40,7 +39,6 @@ public class Simulation : MonoBehaviour
     private int numVelocities;
     private Initializer.SpawnData spawnData;
     private CPUCompute cpuCompute;
-    private Sorter sorter;
     private float restDensity = 0;
 
     // buffers
@@ -50,10 +48,15 @@ public class Simulation : MonoBehaviour
     public float2[] particlePositions { get; private set; }
     public float2[] particleVelocities { get; private set; }
     public float[] densityBuffer { get; private set; }
+    public int[] disabledParticles { get; private set; }
+    public int[] isCellBucket { get; private set; }
     
     // state
     private bool isPaused;
     private bool pauseNextFrame;
+
+    // score
+    public int score = 0;
     
     private void Start()
     {
@@ -80,6 +83,8 @@ public class Simulation : MonoBehaviour
         cellVelocities = new float2[totalCells];
         particlePositions = new float2[numParticles];
         particleVelocities = new float2[numParticles];
+        disabledParticles = new int[numParticles];
+        isCellBucket = new int[totalCells];
         
         // compute.SetFloat("interactionInputRadius", interactionRadius);
 
@@ -149,13 +154,23 @@ public class Simulation : MonoBehaviour
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
         cpuCompute.TerrainCollisions(particlePositions, particleVelocities);
         
-        cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities);
+        cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
         cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity);
-        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
+        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles);
 
         // handle mouse interactions
         // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
+    }
+
+    // checks if the game is over
+    private bool AreYaWinningYetSon() {
+        score = cpuCompute.DisableParticles(particlePositions, disabledParticles, isCellBucket, score);
+
+        if (score >= 0.3 * numParticles) {
+            return true;
+        }
+        return false;
     }
 
     // update compute shader settings
