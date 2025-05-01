@@ -37,6 +37,7 @@ public class Simulation : MonoBehaviour
     public ComputeBuffer cellWeightBuffer { get; private set; }
     public ComputeBuffer positionBuffer { get; private set; }
     public ComputeBuffer particleVelocityBuffer { get; private set; }
+    public ComputeBuffer disabledParticlesBuffer { get; private set; }
 
     // kernel IDs
     private const int simulateParticlesKernel = 0;
@@ -68,6 +69,7 @@ public class Simulation : MonoBehaviour
         cellVelocityBuffer = new DoubleBuffer<float2>(totalCells);
         positionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
+        disabledParticlesBuffer = ComputeHelper.CreateStructuredBuffer<bool>(numParticles);
         
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles);
@@ -191,9 +193,10 @@ public class Simulation : MonoBehaviour
         float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
+        bool[] disabledParticles = CPUCompute.LoadBoolBuffer(disabledParticlesBuffer, numParticles);
         
         // transfer velocity on CPU
-        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities);
+        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
         
         // copy buffer to GPU
         cellVelocityBuffer.bufferWrite.SetData(cellVelocities);
@@ -209,9 +212,10 @@ public class Simulation : MonoBehaviour
         float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferRead, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
         float2[] particleVelocities = CPUCompute.LoadFloat2Buffer(particleVelocityBuffer, numParticles);
+        bool[] disabledParticles = CPUCompute.LoadBoolBuffer(disabledParticlesBuffer, numParticles);
         
         // transfer velocity on CPU
-        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities);
+        cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles);
         
         // copy buffer to GPU
         particleVelocityBuffer.SetData(particleVelocities);
