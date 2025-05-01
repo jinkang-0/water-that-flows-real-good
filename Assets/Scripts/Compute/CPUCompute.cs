@@ -125,7 +125,7 @@ public class CPUCompute
     // fluid sim pipelines
     //
     public void VelocityTransferParticle(float2[] cellVelocities, float2[] cellWeights, float2[] particlePositions, 
-    float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer, int[]cellTypes)
+    float2[] particleVelocities, int[]disabledParticles, int[]isCellBuffer)
     {
         var numParticles = particlePositions.Length;
         
@@ -135,7 +135,7 @@ public class CPUCompute
         {
             // disabling particles here
             if (disabledParticles[i] == 0) {
-                if (cellTypes[i] == BUCKET_CELL) {
+                if (isCellBuffer[i] == 1) {
                     disabledParticles[i] = 1;
 
                 } else {
@@ -188,7 +188,7 @@ public class CPUCompute
         {
             // disabling particles here
             if (disabledParticles[i] == 0) {
-                if (cellTypes[i] == BUCKET_CELL) {
+                if (isCellBuffer[i] == 1) {
                     disabledParticles[i] = 1;
                 } else {
                     var pos = ClampPosToGrid(particlePositions[i]);

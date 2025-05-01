@@ -191,7 +191,6 @@ public class Simulation : MonoBehaviour
     private void VelocityTransferParticle()
     {
         // copy buffer to CPU
-        int[] cellTypes = CPUCompute.LoadIntBuffer(cellTypeBuffer, totalCells);
         float2[] cellVelocities = CPUCompute.LoadFloat2Buffer(cellVelocityBuffer.bufferWrite, totalCells);
         float2[] cellWeights = CPUCompute.LoadFloat2Buffer(cellWeightBuffer, totalCells);
         float2[] particlePositions = CPUCompute.LoadFloat2Buffer(positionBuffer, numParticles);
@@ -200,7 +199,7 @@ public class Simulation : MonoBehaviour
         int[] isCellBucket = CPUCompute.LoadIntBuffer(disabledParticlesBuffer.bufferWrite, numParticles);
         
         // transfer velocity on CPU
-        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles, isCellBucket, cellTypes);
+        cpuCompute.VelocityTransferParticle(cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles, isCellBucket);
         
         // copy buffer to GPU
         cellVelocityBuffer.bufferWrite.SetData(cellVelocities);
