@@ -7,8 +7,11 @@ public class Initializer : MonoBehaviour
 {
     public Texture2D terrainTexture;
 
-    public Texture2D terrainTextureSDFOutside;
-    public Texture2D terrainTextureSDFInside;
+    public Texture2D dynamicTerrainTextureSDFOutside;
+    public Texture2D dynamicTerrainTextureSDFInside;
+
+    public Texture2D staticTerrainTextureSDFOutside;
+    public Texture2D staticTerrainTextureSDFInside;
 
     public ComputeShader SDFInit;
 
@@ -18,14 +21,15 @@ public class Initializer : MonoBehaviour
     private const float threshold = 0.01f;
     private const int DRAIN_CELL = 4;
 
-    public Texture2D GenerateSDF()
-    {
-        terrainTextureSDFOutside.filterMode = FilterMode.Bilinear;
-        terrainTextureSDFOutside.wrapMode = TextureWrapMode.Mirror;
-        terrainTextureSDFInside.filterMode = FilterMode.Bilinear;
-        terrainTextureSDFInside.wrapMode = TextureWrapMode.Mirror;
 
-        RenderTexture terrainSDF = new RenderTexture(terrainTextureSDFOutside.width, terrainTextureSDFOutside.height, 1, GraphicsFormat.R32_SFloat, 0);
+    private Texture2D GenerateSDF(Texture2D inside, Texture2D outside)
+    {
+        outside.filterMode = FilterMode.Bilinear;
+        outside.wrapMode = TextureWrapMode.Mirror;
+        inside.filterMode = FilterMode.Bilinear;
+        inside.wrapMode = TextureWrapMode.Mirror;
+
+        RenderTexture terrainSDF = new RenderTexture(outside.width, outside.height, 1, GraphicsFormat.R32_SFloat, 0);
         terrainSDF.enableRandomWrite = true;
 
         {
@@ -36,8 +40,8 @@ public class Initializer : MonoBehaviour
 
             SDFInit.SetInt("width", terrainSDF.width);
             SDFInit.SetInt("height", terrainSDF.height);
-            SDFInit.SetTexture(kernel, "in_DistanceOutside", terrainTextureSDFOutside, 0);
-            SDFInit.SetTexture(kernel, "in_DistanceInside", terrainTextureSDFInside, 0);
+            SDFInit.SetTexture(kernel, "in_DistanceOutside", outside, 0);
+            SDFInit.SetTexture(kernel, "in_DistanceInside", inside, 0);
             SDFInit.SetTexture(kernel, "out_SignedDistance", terrainSDF, 0);
             SDFInit.Dispatch(kernel, w, h, 1);
         }
@@ -52,6 +56,10 @@ public class Initializer : MonoBehaviour
         }
 
         return terrainSDF_2;
+    }
+    public (Texture2D staticTerrain, Texture2D dynamicTerrain) GenerateSDFs()
+    {
+        return (GenerateSDF(staticTerrainTextureSDFInside, staticTerrainTextureSDFOutside), GenerateSDF(dynamicTerrainTextureSDFInside, dynamicTerrainTextureSDFOutside));
     }
     public struct SpawnData
     {

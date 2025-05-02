@@ -2,7 +2,10 @@ Shader "Custom/SDFTerrain"
 {
     Properties
     {
-        _MainTex ("Texture", 2D) = "white" {}
+        _DynamicDist ("Texture", 2D) = "white" {}
+        _StaticDist ("Texture", 2D) = "white" {}
+        _DynamicColor ("Texture", 2D) = "white" {}
+        _StaticColor ("Texture", 2D) = "white" {}
     }
     SubShader
     {
@@ -33,8 +36,14 @@ Shader "Custom/SDFTerrain"
             float scale;
             float2 boundsSize;
 
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
+            sampler2D _DynamicDist;
+            float4 _DynamicDist_ST;
+            sampler2D _StaticDist;
+            float4 _StaticDist_ST;
+            sampler2D _DynamicColor;
+            float4 _DynamicColor_ST;
+            sampler2D _StaticColor;
+            float4 _StaticColor_ST;
 
             v2f vert (appdata v)
             {
@@ -43,24 +52,17 @@ Shader "Custom/SDFTerrain"
                 float4 pos = float4(boundsSize.x * v.vertex.x, boundsSize.y * v.vertex.y, -1.0, 1.0);
 
                 o.vertex = UnityObjectToClipPos(pos);
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                o.uv = TRANSFORM_TEX(v.uv, _DynamicDist);
                 return o;
             }
 
             fixed4 frag (v2f i) : SV_Target
             {
-                // sample the texture
-                fixed4 col = tex2D(_MainTex, i.uv);
+                if (tex2D(_DynamicDist, i.uv).r < 0.0) return tex2D(_DynamicColor, i.uv);
+                if (tex2D(_StaticDist, i.uv).r < 0.0) return tex2D(_StaticColor, i.uv);
 
-                if (col.r < 0.0)
-                {
-                    return fixed4(1.0, 1.0, 1.0, 1.0);
-                }
-                else
-                {
-                    discard;
-                    return fixed4(0.0, 0.0, 0.0, 0.0);
-                }
+                discard;
+                return fixed4(0.0, 0.0, 0.0, 0.0);
             }
             ENDCG
         }

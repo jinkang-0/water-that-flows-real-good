@@ -29,7 +29,8 @@ public class Simulation : MonoBehaviour
     public Display2D display;
 
     // shared with display
-    public Texture2D terrainSDF;
+    public Texture2D staticTerrainSDF;
+    public Texture2D dynamicTerrainSDF;
     public RenderTexture terrainSDFEdit;
     public ComputeShader SDFEdit;
     
@@ -95,8 +96,9 @@ public class Simulation : MonoBehaviour
         spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
         SetInitialBufferData();
 
-        terrainSDF = initializer.GenerateSDF();
-        terrainSDFEdit = new RenderTexture(terrainSDF.width, terrainSDF.height, 1, GraphicsFormat.R32_SFloat, 0);
+        (staticTerrainSDF, dynamicTerrainSDF) = initializer.GenerateSDFs();
+
+        terrainSDFEdit = new RenderTexture(dynamicTerrainSDF.width, dynamicTerrainSDF.height, 1, GraphicsFormat.R32_SFloat, 0);
         terrainSDFEdit.enableRandomWrite = true;
 
         // initialize display
@@ -164,7 +166,8 @@ public class Simulation : MonoBehaviour
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
         cpuCompute.PushApartParticles(particlePositions);
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
-        cpuCompute.TerrainCollisions(particlePositions, particleVelocities);
+        cpuCompute.TerrainCollisions(dynamicTerrainSDF, particlePositions, particleVelocities);
+        cpuCompute.TerrainCollisions(staticTerrainSDF, particlePositions, particleVelocities);
         cpuCompute.HandleDrainCollisions(cellTypes, particlePositions);
         
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
@@ -218,29 +221,28 @@ public class Simulation : MonoBehaviour
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         if (Input.GetMouseButton(1))
         {
-            Graphics.Blit(terrainSDF, terrainSDFEdit);
+            Graphics.Blit(dynamicTerrainSDF, terrainSDFEdit);
 
             {
                 int kernel = SDFEdit.FindKernel("Edit");
                 SDFEdit.GetKernelThreadGroupSizes(kernel, out uint thread_group_w, out uint thread_group_h, out uint _z);
-                int w = terrainSDF.width / (int)thread_group_w + 1;
-                int h = terrainSDF.width / (int)thread_group_h + 1;
+                int w = dynamicTerrainSDF.width / (int)thread_group_w + 1;
+                int h = dynamicTerrainSDF.width / (int)thread_group_h + 1;
 
-                SDFEdit.SetInt("width", terrainSDF.width);
-                SDFEdit.SetInt("height", terrainSDF.height);
-                Debug.Log(boundsSize);
+                SDFEdit.SetInt("width", dynamicTerrainSDF.width);
+                SDFEdit.SetInt("height", dynamicTerrainSDF.height);
 
-                SDFEdit.SetVector("mousePos", new Vector2(terrainSDF.width, terrainSDF.height) * (mousePos + 0.5f * boundsSize) / boundsSize);
+                SDFEdit.SetVector("mousePos", new Vector2(dynamicTerrainSDF.width, dynamicTerrainSDF.height) * (mousePos + 0.5f * boundsSize) / boundsSize);
 
-                SDFEdit.SetFloat("interaction_radius", interactionRadius * terrainSDF.width / boundsSize.x);
+                SDFEdit.SetFloat("interaction_radius", interactionRadius * dynamicTerrainSDF.width / boundsSize.x);
 
                 SDFEdit.SetTexture(kernel, "Distance", terrainSDFEdit, 0);
                 SDFEdit.Dispatch(kernel, w, h, 1);
             }
             {
                 RenderTexture.active = terrainSDFEdit;
-                terrainSDF.ReadPixels(new Rect(0, 0, terrainSDF.width, terrainSDF.height), 0, 0);
-                terrainSDF.Apply();
+                dynamicTerrainSDF.ReadPixels(new Rect(0, 0, dynamicTerrainSDF.width, dynamicTerrainSDF.height), 0, 0);
+                dynamicTerrainSDF.Apply();
             }
         }
     }
