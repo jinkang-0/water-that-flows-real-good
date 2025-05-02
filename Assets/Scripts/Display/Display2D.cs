@@ -3,11 +3,15 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.Serialization;
 
 [SuppressMessage("ReSharper", "Unity.PreferAddressByIdToGraphicsParams")]
 public class Display2D : MonoBehaviour
 {
     public float scale;
+    public float particleSoftness = 5;
+    public float particleThreshold = 0.1f;
+    
     public Mesh mesh;
     public Shader gridShader;
     public Shader particleShader;
@@ -17,11 +21,12 @@ public class Display2D : MonoBehaviour
     public Color waterColor;
     public Color drainColor = Color.gray;
 
+    // inferred variables
     private Material gridMaterial;
     private Material particleMaterial;
     private Material terrainMaterial;
     private ComputeBuffer gridArgsBuffer;
-    private ComputeBuffer particleArgsBuffer;
+    // private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
     
@@ -38,6 +43,8 @@ public class Display2D : MonoBehaviour
     private ComputeBuffer particlePositionBuffer;
     private ComputeBuffer particleActiveBuffer;
     private ComputeBuffer particleVelocityBuffer;
+    private ComputeBuffer lookupStartIndicesBuffer;
+    private ComputeBuffer particleLookupBuffer;
 
     public TMP_Text scoreText;
 
@@ -63,6 +70,8 @@ public class Display2D : MonoBehaviour
         cellVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numCells);
         particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
         particlePositionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
+        particleLookupBuffer = ComputeHelper.CreateStructuredBuffer<int>(sim.numPartitionCells);
+        lookupStartIndicesBuffer = ComputeHelper.CreateStructuredBuffer<int>(sim.numPartitionCells + 1);
         
         // bind buffers
         gridMaterial.SetBuffer("cellTypes", cellTypeBuffer);
@@ -71,7 +80,7 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetBuffer("particlePositions", particlePositionBuffer);
 
         gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
-        particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
+        // particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
     }
@@ -86,8 +95,11 @@ public class Display2D : MonoBehaviour
         // update data
         cellTypeBuffer.SetData(simulation.cellTypes);
         cellVelocityBuffer.SetData(simulation.cellVelocities);
+        
         particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
+        particleLookupBuffer.SetData(simulation.particleLookup);
+        lookupStartIndicesBuffer.SetData(simulation.lookupStartIndices);
         
         // Update score text
         if (scoreText != null)
@@ -97,7 +109,7 @@ public class Display2D : MonoBehaviour
         
         Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer); 
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
     }
 
     private void UpdateSettings()
@@ -121,6 +133,12 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetFloat("particleRadius", simulation.particleRadius);
         particleMaterial.SetInt("numCols", simulation.numCells.x);
         particleMaterial.SetInt("numRows", simulation.numCells.y);
+        particleMaterial.SetFloat("partitionSpacing", simulation.partitionSpacing);
+        particleMaterial.SetInt("partitionNumX", simulation.partitionNumX);
+        particleMaterial.SetInt("partitionNumY", simulation.partitionNumY);
+        particleMaterial.SetInt("numParticles", simulation.numParticles);
+        particleMaterial.SetFloat("threshold", particleThreshold);
+        particleMaterial.SetFloat("softness", particleSoftness);
 
         terrainMaterial.SetFloat("scale", scale);
         terrainMaterial.SetVector("boundsSize", simulation.boundsSize);
@@ -134,10 +152,8 @@ public class Display2D : MonoBehaviour
     private void OnDestroy()
     {
         ComputeHelper.Release(gridArgsBuffer);
-        ComputeHelper.Release(particleArgsBuffer);
-        ComputeHelper.Release(cellTypeBuffer);
-        ComputeHelper.Release(cellVelocityBuffer);
-        ComputeHelper.Release(particlePositionBuffer);
-        ComputeHelper.Release(particleVelocityBuffer);
+        // ComputeHelper.Release(particleArgsBuffer);
+        ComputeHelper.Release(cellTypeBuffer, cellVelocityBuffer, particlePositionBuffer, particleVelocityBuffer);
+        ComputeHelper.Release(particleLookupBuffer, lookupStartIndicesBuffer);
     }
 }

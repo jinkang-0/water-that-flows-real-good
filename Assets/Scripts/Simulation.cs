@@ -39,6 +39,10 @@ public class Simulation : MonoBehaviour
     public float cellSize { get; private set; }
     public Vector2 boundsSize { get; private set; }
     public float particleRadius { get; private set; }
+    public float partitionSpacing { get; private set; }
+    public int partitionNumX { get; private set; }
+    public int partitionNumY { get; private set; }
+    public int numPartitionCells { get; private set; }
     private int totalCells;
     private int numVelocities;
     private Initializer.SpawnData spawnData;
@@ -54,14 +58,18 @@ public class Simulation : MonoBehaviour
     public float[] densityBuffer { get; private set; }
     public int[] disabledParticles { get; private set; }
     public int[] isCellBucket { get; private set; }
+    public int[] particleCounts { get; private set; }
+    public int[] lookupStartIndices { get; private set; }
+    public int[] particleLookup { get; private set; }
     
     // state
     private bool isPaused;
     private bool pauseNextFrame;
+    
+    // score
     public int score { get; set; }
     private int lastLoggedScore = -1;
-    // score
-    
+
     private void Start()
     {
         Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Delete");
@@ -79,6 +87,12 @@ public class Simulation : MonoBehaviour
         numCells = Vector2Int.FloorToInt(boundsSize / cellSize);
         totalCells = numCells.x * numCells.y;
         particleRadius = cellSize / particleDensity;
+        
+        // determine spacing for partitions
+        partitionSpacing = 2.2f * particleRadius;
+        partitionNumX = Mathf.CeilToInt(boundsSize.x / partitionSpacing);
+        partitionNumY = Mathf.CeilToInt(boundsSize.y / partitionSpacing);
+        numPartitionCells = partitionNumX * partitionNumY;
 
         // create buffers
         cellTypes = new int[totalCells];
@@ -89,6 +103,9 @@ public class Simulation : MonoBehaviour
         particleVelocities = new float2[numParticles];
         disabledParticles = new int[numParticles];
         isCellBucket = new int[totalCells];
+        particleCounts = new int[numPartitionCells];
+        lookupStartIndices = new int[numPartitionCells + 1];
+        particleLookup = new int[numParticles];
         
         // compute.SetFloat("interactionInputRadius", interactionRadius);
 
@@ -153,7 +170,7 @@ public class Simulation : MonoBehaviour
         }
 
         if (score != lastLoggedScore)
-       {
+        {
             Debug.Log($"Score: {score}");
             lastLoggedScore = score;
         }
@@ -165,7 +182,7 @@ public class Simulation : MonoBehaviour
     {
         // simulate particle physics
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
-        cpuCompute.PushApartParticles(particlePositions);
+        cpuCompute.PushApartParticles(particlePositions, particleCounts, lookupStartIndices, particleLookup);
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
         cpuCompute.TerrainCollisions(dynamicTerrainSDF, particlePositions, particleVelocities);
         cpuCompute.TerrainCollisions(staticTerrainSDF, particlePositions, particleVelocities);

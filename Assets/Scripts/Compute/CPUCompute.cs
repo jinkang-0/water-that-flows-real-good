@@ -468,21 +468,23 @@ public class CPUCompute
         }
     }
 
-    public void PushApartParticles(float2[] particlePositions)
+    public void PushApartParticles(float2[] particlePositions, int[] counts, int[] startIndices, int[] particleIndices)
     {
         var numParticles = particlePositions.Length;
         var bounds = simulation.boundsSize;
+        var partitionSpacing = simulation.partitionSpacing;
+        var partitionNumX = simulation.partitionNumX;
+        var partitionNumY = simulation.partitionNumY;
+        var numPartitionCells = simulation.numPartitionCells;
         
         // construct uniform space partition for fast neighbor search
         // use 2 * radius for cell size - only have to search neighboring 3x3
-        var partitionSpacing = 2.2f * simulation.particleRadius;
-        var partitionNumX = Mathf.CeilToInt(bounds.x / partitionSpacing);
-        var partitionNumY = Mathf.CeilToInt(bounds.y / partitionSpacing);
-        var numPartitionCells = partitionNumX * partitionNumY;
         
-        var counts = new int[numPartitionCells];
-        var startIndices = new int[numPartitionCells + 1];
-        var particleIndices = new int[numParticles];
+        // clear counts
+        for (int i = 0; i < numPartitionCells; i++)
+        {
+            counts[i] = 0;
+        }
 
         // count particles per cell
         for (int i = 0; i < numParticles; i++)
