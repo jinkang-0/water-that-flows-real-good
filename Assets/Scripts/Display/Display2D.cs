@@ -9,8 +9,8 @@ using UnityEngine.Serialization;
 public class Display2D : MonoBehaviour
 {
     public float scale;
-    [FormerlySerializedAs("blendThreshold")] public float particleSoftness = 1;
-    [FormerlySerializedAs("particleSoftness")] [FormerlySerializedAs("blendSoftness")] public float particleThreshold = 1;
+    public float particleSoftness = 5;
+    public float particleThreshold = 0.1f;
     
     public Mesh mesh;
     public Shader gridShader;
@@ -109,7 +109,7 @@ public class Display2D : MonoBehaviour
         
         Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer); 
-        Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, 1);
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
     }
 
     private void UpdateSettings()
@@ -136,8 +136,9 @@ public class Display2D : MonoBehaviour
         particleMaterial.SetFloat("partitionSpacing", simulation.partitionSpacing);
         particleMaterial.SetInt("partitionNumX", simulation.partitionNumX);
         particleMaterial.SetInt("partitionNumY", simulation.partitionNumY);
-        particleMaterial.SetFloat("particleThreshold", particleThreshold);
-        particleMaterial.SetFloat("particleSoftness", particleSoftness);
+        particleMaterial.SetInt("numParticles", simulation.numParticles);
+        particleMaterial.SetFloat("threshold", particleThreshold);
+        particleMaterial.SetFloat("softness", particleSoftness);
 
         terrainMaterial.SetFloat("scale", scale);
         terrainMaterial.SetVector("boundsSize", simulation.boundsSize);
@@ -152,9 +153,7 @@ public class Display2D : MonoBehaviour
     {
         ComputeHelper.Release(gridArgsBuffer);
         // ComputeHelper.Release(particleArgsBuffer);
-        ComputeHelper.Release(cellTypeBuffer);
-        ComputeHelper.Release(cellVelocityBuffer);
-        ComputeHelper.Release(particlePositionBuffer);
-        ComputeHelper.Release(particleVelocityBuffer);
+        ComputeHelper.Release(cellTypeBuffer, cellVelocityBuffer, particlePositionBuffer, particleVelocityBuffer);
+        ComputeHelper.Release(particleLookupBuffer, lookupStartIndicesBuffer);
     }
 }
