@@ -17,16 +17,25 @@ Shader "Custom/Particle2D"
             #pragma target 4.5
 
             #include "UnityCG.cginc"
-
+            
             StructuredBuffer<float2> particleVelocities;
             StructuredBuffer<float2> particlePositions;
+            StructuredBuffer<int> lookupStartIndices;
+            StructuredBuffer<int> particleLookup;
 
             float scale;
             float particleRadius;
+            float partitionSpacing;
+            int partitionNumX;
+            int partitionNumY;
             float2 boundsSize;
             float4 waterColor;
             int numCols;
             int numRows;
+
+            float blendThreshold;
+            float blendSoftness;
+            float orthographicSize;
             
             float4 color;
             SamplerState linear_clamp_sampler;
@@ -37,6 +46,8 @@ Shader "Custom/Particle2D"
                 float2 uv : TEXCOORD0;
                 float4 color : TEXCOORD1;
                 float radius : TEXCOORD2;
+                int id : TEXCOORD3;
+                float4 screenPos : TEXCOORD4;
             };
 
             v2f vert(const appdata_full v, const uint instanceID : SV_InstanceID)
@@ -55,6 +66,8 @@ Shader "Custom/Particle2D"
                 o.pos = UnityObjectToClipPos(objectVertPos);
                 o.color = waterColor;
                 o.radius = objectSize.x;
+                o.id = instanceID;
+                o.screenPos = ComputeScreenPos(o.pos);
 
                 // hide out of bounds particles
                 // const float2 pos = particlePositions[instanceID];
@@ -72,15 +85,49 @@ Shader "Custom/Particle2D"
 
             float4 frag (v2f i) : SV_Target
             {
-                // circle
-                const float2 centerOffset = i.uv.xy - 0.5;
-                const float sqrDst = dot(centerOffset, centerOffset);
-                const float normalizedDist = sqrDst / (i.radius * i.radius);
-                const float edge = fwidth(sqrt(sqrDst));
-                const float alpha = 1 - smoothstep(1 - edge, 1 + edge, normalizedDist);
+                // get fragment position in screen space
+                const float2 screenUV = i.screenPos.xy / i.screenPos.w;
+                const float2 fragPos = screenUV * _ScreenParams.xy;
+                const float rInScreenSpace = particleRadius * _ScreenParams.y / orthographicSize;
+                const float r2SS = rInScreenSpace * rInScreenSpace;
+                
+                // find total density
+                const float2 p = particlePositions[i.id];
+                const int px = clamp(floor(p.x / partitionSpacing), 0, partitionNumX - 1);
+                const int py = clamp(floor(p.y / partitionSpacing), 0, partitionNumY - 1);
+                const int x0 = clamp(px - 1, 0, partitionNumX - 1);
+                const int x1 = clamp(px + 1, 0, partitionNumX - 1);
+                const int y0 = clamp(py - 1, 0, partitionNumY - 1);
+                const int y1 = clamp(py + 1, 0, partitionNumY - 1);
+                float totalDensity = 0;
+                
+                for (int x = x0; x <= x1; x++)
+                {
+                    for (int y = y0; y <= y1; y++)
+                    {
+                        const int cellIdx = y * partitionNumY + x;
+                        const int startIndex = lookupStartIndices[cellIdx];
+                        const int endIndex = lookupStartIndices[cellIdx + 1];
+
+                        for (int pid = startIndex; pid < endIndex; pid++)
+                        {
+                            const int particleId = particleLookup[pid];
+
+                            // get particle position in screenspace
+                            const float p2 = particlePositions[particleId] * _ScreenParams.xy;
+                            
+                            // compute particle density
+                            const float2 dPos = fragPos - p2;
+                            const float dSqrDist = dot(dPos, dPos);
+                            totalDensity += r2SS / (dSqrDist + 0.001);
+                        }
+                    }
+                }
+
+                const float alpha = smoothstep(blendThreshold - blendSoftness, blendThreshold + blendSoftness, totalDensity);
                 
                 float4 color = i.color;
-                color.a *= alpha;
+                color.a = alpha;
                 
                 return color;
             }

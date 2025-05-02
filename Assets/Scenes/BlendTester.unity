@@ -154,6 +154,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   scale: 1
+  particleSoftness: 1
+  particleThreshold: 0.1
   mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
   gridShader: {fileID: 4800000, guid: c3d7ba0d1a704334195523c97636e4fc, type: 3}
   particleShader: {fileID: 4800000, guid: 956160b59825428b9e89abc0ad80aa34, type: 3}
@@ -258,7 +260,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0.19775715, g: 0.27479187, b: 0.381132, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
