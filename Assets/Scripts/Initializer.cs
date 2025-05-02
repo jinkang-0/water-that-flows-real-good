@@ -103,7 +103,6 @@ public class Initializer : MonoBehaviour
         {
             int textureWidth = drainTexture.width;
             int textureHeight = drainTexture.height;
-            var drainCells = new List<int>();
 
             for (int row = 0; row < gridSize.y; row++)
             {
@@ -121,17 +120,24 @@ public class Initializer : MonoBehaviour
                     pixelY = Mathf.Clamp(pixelY, 0, textureHeight - 1);
 
                     // use the Get Pixel method to see the color
-                    Color pixelColor = waterTexture.GetPixel(pixelX, pixelY);
+                    Color pixelColor = drainTexture.GetPixel(pixelX, pixelY);
 
                     // check if the pixel is filled
                     if (pixelColor.a > threshold)
                     {
                         int cellIndex = row * gridSize.x + col;
                         data.cellTypes[cellIndex] = DRAIN_CELL;
-                        drainCells.Add(cellIndex);
                     }
                 }
             }
+        }
+        else
+        {
+            // in case there is no texture set / cannot read
+            if (drainTexture == null)
+                Debug.Log("no drain texture assigned, not setting any drain cells");
+            else
+                Debug.LogError("Failed to read drain cell texture.");
         }
         
         // generate water from texture
