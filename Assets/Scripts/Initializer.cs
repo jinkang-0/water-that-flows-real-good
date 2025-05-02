@@ -14,6 +14,7 @@ public class Initializer : MonoBehaviour
 
     // this is the threshold to check if color is black or not
     private const float threshold = 0.01f;
+    private const int DRAIN_CELL = 4;
 
     public Texture2D GenerateSDF()
     {
@@ -196,6 +197,20 @@ public class Initializer : MonoBehaviour
         {
             data.cellTypes[gridSize.x * i] = 2;
             data.cellTypes[gridSize.x * i + gridSize.x - 1] = 2;
+        }
+
+        int drainSize = 5;
+        int drainStartX = gridSize.x - drainSize - 1;
+        int drainStartY = 1;
+
+        for (int row = drainStartY; row < drainStartY + drainSize && row < gridSize.y - 1; row++)
+        {
+            for (int col = drainStartX; col < drainStartX + drainSize && col < gridSize.x - 1; col++)
+            {
+                int cellIndex = row * gridSize.x + col;
+                if(data.cellTypes[cellIndex] == 0)
+                    data.cellTypes[cellIndex] = DRAIN_CELL;
+            }
         }
 
         // generate random velocities

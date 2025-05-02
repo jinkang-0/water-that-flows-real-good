@@ -54,9 +54,9 @@ public class Simulation : MonoBehaviour
     // state
     private bool isPaused;
     private bool pauseNextFrame;
-
+    public int score { get; set; }
+    private int lastLoggedScore = -1;
     // score
-    public int score = 0;
     
     private void Start()
     {
@@ -143,6 +143,13 @@ public class Simulation : MonoBehaviour
         {
             RunSimulationStep(timeStep);
         }
+
+        if (score != lastLoggedScore)
+       {
+            Debug.Log($"Score: {score}");
+            lastLoggedScore = score;
+        }
+
     }
 
     // run one step
@@ -153,6 +160,7 @@ public class Simulation : MonoBehaviour
         cpuCompute.PushApartParticles(particlePositions);
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
         cpuCompute.TerrainCollisions(particlePositions, particleVelocities);
+        cpuCompute.HandleDrainCollisions(cellTypes, particlePositions);
         
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
@@ -161,16 +169,6 @@ public class Simulation : MonoBehaviour
 
         // handle mouse interactions
         // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
-    }
-
-    // checks if the game is over
-    private bool AreYaWinningYetSon() {
-        score = cpuCompute.DisableParticles(particlePositions, disabledParticles, isCellBucket, score);
-
-        if (score >= 0.3 * numParticles) {
-            return true;
-        }
-        return false;
     }
 
     // update compute shader settings
@@ -203,7 +201,9 @@ public class Simulation : MonoBehaviour
         Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
         
         Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
-        Array.Copy(spawnData.positions, particlePositions, numParticles);
+        Array.Copy(spawnData.positions, particlePositions, numParticles); 
+        score = 0;
+        lastLoggedScore = -1;
     }
 
     private void HandleInput()

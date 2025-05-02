@@ -13,6 +13,7 @@ public class Display2D : MonoBehaviour
     public Color terrainColor;
     public Color stoneColor;
     public Color waterColor;
+    public Color drainColor = Color.gray;
 
     private Material gridMaterial;
     private Material particleMaterial;
@@ -29,6 +30,7 @@ public class Display2D : MonoBehaviour
     private ComputeBuffer cellTypeBuffer;
     private ComputeBuffer cellVelocityBuffer;
     private ComputeBuffer particlePositionBuffer;
+    private ComputeBuffer particleActiveBuffer;
     private ComputeBuffer particleVelocityBuffer;
 
     private Simulation simulation;
@@ -41,6 +43,7 @@ public class Display2D : MonoBehaviour
         particleMaterial = new Material(particleShader);
         terrainMaterial = new Material(terrainShader);
         terrainMaterial.SetTexture("_MainTex", terrainSDF);
+        needsUpdate = true;
 
         // initialize buffers
         var numCells = sim.numCells.x * sim.numCells.y;
@@ -88,6 +91,7 @@ public class Display2D : MonoBehaviour
         gridMaterial.SetColor("terrainColor", terrainColor);
         gridMaterial.SetColor("stoneColor", stoneColor);
         gridMaterial.SetColor("waterColor", waterColor);
+        gridMaterial.SetColor("drainColor", drainColor);
         gridMaterial.SetInt("numCols", simulation.numCells.x);
         gridMaterial.SetInt("numRows", simulation.numCells.y);
         gridMaterial.SetVector("boundsSize", simulation.boundsSize);

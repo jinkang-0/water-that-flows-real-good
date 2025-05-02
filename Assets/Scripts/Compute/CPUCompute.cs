@@ -10,7 +10,7 @@ public class CPUCompute
     private const int TERRAIN_CELL = 1;
     private const int STONE_CELL = 2;
     private const int WATER_CELL = 3;
-    private const int BUCKET_CELL = 4;
+    private const int DRAIN_CELL = 4;
     
     //
     // helpers to work with unity compute buffer
@@ -113,6 +113,9 @@ public class CPUCompute
 
         for (int i = 0; i < particlePositions.Length; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             // position on SDF texture to sample
             int px = (int)(simulation.terrainSDF.width * particlePositions[i].x / simulation.boundsSize.x);
             int py = (int)(simulation.terrainSDF.height * particlePositions[i].y / simulation.boundsSize.y);
@@ -167,22 +170,31 @@ public class CPUCompute
     // fluid sim pipelines
     //
 
-        public int DisableParticles(float2[] particlePositions, int[]disabledParticles, int[]isCellBucket, int score) {
-        for (int i = 0; i < disabledParticles.Length; i++) {
-            var cellSize = simulation.cellSize;
-            var size = simulation.numCells;
-            
+    public void HandleDrainCollisions(int[] cellTypes, float2[] particlePositions)
+    {
+        var numParticles = particlePositions.Length;
+        var size = simulation.numCells;
+        var cellSize = simulation.cellSize;
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            // Check if particle is already removed
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
+
             var col = Mathf.Clamp(Mathf.FloorToInt(pos.x / cellSize), 0, size.x - 1);
             var row = Mathf.Clamp(Mathf.FloorToInt(pos.y / cellSize), 0, size.y - 1);
             var idx = row * size.x + col;
 
-            if (isCellBucket[idx] == 1 && disabledParticles[i] == 0) {
-                disabledParticles[i] = 1;
-                score++;
+            // If the particle is in a drain cell
+            if (cellTypes[idx] == DRAIN_CELL)
+            {
+                simulation.score++;
+                // Remove the particle
+                particlePositions[i] = new float2(-1000f, -1000f); 
             }
         }
-        return score;
     }
 
     public void SimulateParticles(float2[] particlePositions, float2[] particleVelocities, float gravity, float deltaTime)
@@ -192,6 +204,9 @@ public class CPUCompute
         // integrate position & velocity
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             particleVelocities[i].y += gravity * deltaTime;
             particlePositions[i] += particleVelocities[i] * deltaTime;
         }
@@ -213,6 +228,9 @@ public class CPUCompute
 
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
             if (pos.x < minX)
             {
@@ -264,6 +282,9 @@ public class CPUCompute
         // fill water
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
             var col = Mathf.Clamp(Mathf.FloorToInt(pos.x / cellSize), 0, size.x - 1);
             var row = Mathf.Clamp(Mathf.FloorToInt(pos.y / cellSize), 0, size.y - 1);
@@ -276,7 +297,7 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            if (disabledParticles[i] == 0) {
+            if (disabledParticles[i] == 0 && particlePositions[i].x >= 0) {
                 var pos = particlePositions[i];
 
                 // get interpolation data
@@ -343,7 +364,7 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            if (disabledParticles[i] == 0) {
+            if (disabledParticles[i] == 0 && particlePositions[i].x >= 0) {
                 var pos = particlePositions[i];
 
                 // get interpolation data
@@ -466,6 +487,9 @@ public class CPUCompute
         // count particles per cell
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
             var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
             var y = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionNumY - 1);
@@ -486,6 +510,9 @@ public class CPUCompute
         // fill particles
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
             var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
             var y = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionNumY - 1);
@@ -502,6 +529,9 @@ public class CPUCompute
         {
             for (int i = 0; i < numParticles; i++)
             {
+                // Skip removed particles
+                if (particlePositions[i].x < 0) continue;
+
                 var pos = particlePositions[i];
                 var px = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
                 var py = Mathf.Clamp(Mathf.FloorToInt(pos.y / partitionSpacing), 0, partitionNumY - 1);
@@ -572,6 +602,9 @@ public class CPUCompute
         // add densities (assume particle density = 1)
         for (int i = 0; i < numParticles; i++)
         {
+            // Skip removed particles
+            if (particlePositions[i].x < 0) continue;
+
             var pos = particlePositions[i];
             var intData = ParticleCellInterpolation(pos, 0.5f * cellSize);
             var cellIdx = intData.indices;

@@ -29,6 +29,7 @@ Shader "Custom/Grid2D"
             float4 terrainColor;
             float4 stoneColor;
             float4 waterColor;
+            float4 drainColor;
             
             float4 color;
             SamplerState linear_clamp_sampler;
@@ -65,6 +66,8 @@ Shader "Custom/Grid2D"
                     o.color = terrainColor;
                 else if (cellTypes[instanceID] == 2)
                     o.color = stoneColor;
+                else if (cellTypes[instanceID] == 4)
+                    o.color = drainColor;
                 // else
                 // {
                 //     const float2 vel = cellVelocities[instanceID];
