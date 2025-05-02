@@ -103,7 +103,7 @@ public class Initializer : MonoBehaviour
         {
             int textureWidth = drainTexture.width;
             int textureHeight = drainTexture.height;
-            var drainCells = new List<int>();
+            // var drainCells = new List<int>();
 
             for (int row = 0; row < gridSize.y; row++)
             {
@@ -128,7 +128,7 @@ public class Initializer : MonoBehaviour
                     {
                         int cellIndex = row * gridSize.x + col;
                         data.cellTypes[cellIndex] = DRAIN_CELL;
-                        drainCells.Add(cellIndex);
+                        // drainCells.Add(cellIndex);
                     }
                 }
             }
