@@ -58,8 +58,8 @@ Shader "Custom/SDFTerrain"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                if (tex2D(_DynamicDist, i.uv).r < 0.0) return tex2D(_DynamicColor, i.uv);
                 if (tex2D(_StaticDist, i.uv).r < 0.0) return tex2D(_StaticColor, i.uv);
+                if (tex2D(_DynamicDist, i.uv).r < 0.0) return tex2D(_DynamicColor, i.uv);
 
                 discard;
                 return fixed4(0.0, 0.0, 0.0, 0.0);
