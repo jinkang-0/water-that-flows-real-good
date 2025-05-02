@@ -94,9 +94,10 @@ public class Simulation : MonoBehaviour
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
-        SetInitialBufferData();
-
-        (staticTerrainSDF, dynamicTerrainSDF) = initializer.GenerateSDFs();
+        staticTerrainSDF = new Texture2D(spawnData.staticTerrainSDF.width, spawnData.staticTerrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        dynamicTerrainSDF = new Texture2D(spawnData.dynamicTerrainSDF.width, spawnData.dynamicTerrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        
+        SetInitialSceneData();
 
         terrainSDFEdit = new RenderTexture(dynamicTerrainSDF.width, dynamicTerrainSDF.height, 1, GraphicsFormat.R32_SFloat, 0);
         terrainSDFEdit.enableRandomWrite = true;
@@ -203,13 +204,19 @@ public class Simulation : MonoBehaviour
     }
 
     // reset buffer data to spawner data
-    private void SetInitialBufferData()
+    private void SetInitialSceneData()
     {
+        // initial buffers
         Array.Copy(spawnData.cellTypes, cellTypes, totalCells);
         Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
-        
         Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
         Array.Copy(spawnData.positions, particlePositions, numParticles); 
+        
+        // set initial SDFs
+        Graphics.CopyTexture(spawnData.staticTerrainSDF, staticTerrainSDF);
+        Graphics.CopyTexture(spawnData.dynamicTerrainSDF, dynamicTerrainSDF);
+        
+        // set score values
         score = 0;
         lastLoggedScore = -1;
     }
@@ -267,7 +274,7 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             isPaused = true;
-            SetInitialBufferData();
+            SetInitialSceneData();
         }
 
         TerrainEdit();
