@@ -230,6 +230,7 @@ MonoBehaviour:
   staticTerrainTextureSDFInside: {fileID: 2800000, guid: a875e98d152c1996a9840ca596c58277, type: 3}
   SDFInit: {fileID: 7200000, guid: 2069f52fb176b4bc7a50b2c64415bcb1, type: 3}
   waterTexture: {fileID: 0}
+  drainTexture: {fileID: 2800000, guid: 043f723a455e2431d8c4d7b032f363a8, type: 3}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
