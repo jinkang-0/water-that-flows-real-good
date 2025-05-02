@@ -64,7 +64,7 @@ public class Simulation : MonoBehaviour
     
     private void Start()
     {
-        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
+        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Delete");
         
         // target fps
         float deltaTime = 1 / 60f;
@@ -181,27 +181,27 @@ public class Simulation : MonoBehaviour
     }
 
     // update compute shader settings
-    private void UpdateSettings(float deltaTime)
-    {
-        // mouse interactions
-        if (Camera.main == null) return;
-    
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        int interactionType = 0;
-        bool isPush = Input.GetMouseButton(0);
-        bool isDelete = Input.GetMouseButton(1);
-        if (isPush)
-        {
-            interactionType = 1;
-        } 
-        else if (isDelete)
-        {
-            interactionType = 2;
-        }
-    
-        compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetInt("interactionInputType", interactionType);
-    }
+    // private void UpdateSettings(float deltaTime)
+    // {
+    //     // mouse interactions
+    //     if (Camera.main == null) return;
+    //
+    //     Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+    //     int interactionType = 0;
+    //     bool isPush = Input.GetMouseButton(0);
+    //     bool isDelete = Input.GetMouseButton(1);
+    //     if (isPush)
+    //     {
+    //         interactionType = 1;
+    //     } 
+    //     else if (isDelete)
+    //     {
+    //         interactionType = 2;
+    //     }
+    //
+    //     compute.SetVector("interactionInputPoint", mousePos);
+    //     compute.SetInt("interactionInputType", interactionType);
+    // }
 
     // reset buffer data to spawner data
     private void SetInitialSceneData()
@@ -226,7 +226,7 @@ public class Simulation : MonoBehaviour
         if (Camera.main == null) return;
     
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        if (Input.GetMouseButton(1))
+        if (Input.GetMouseButton(0))
         {
             Graphics.Blit(dynamicTerrainSDF, terrainSDFEdit);
 
