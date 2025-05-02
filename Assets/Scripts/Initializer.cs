@@ -10,6 +10,8 @@ public class Initializer : MonoBehaviour
     public Texture2D terrainTextureSDFOutside;
     public Texture2D terrainTextureSDFInside;
 
+    public ComputeShader SDFInit;
+
     public Texture2D waterTexture;
 
     // this is the threshold to check if color is black or not
@@ -18,29 +20,38 @@ public class Initializer : MonoBehaviour
 
     public Texture2D GenerateSDF()
     {
-        Texture2D terrainSDF = new Texture2D(terrainTextureSDFOutside.width, terrainTextureSDFOutside.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
-        terrainSDF.wrapMode = TextureWrapMode.Mirror;
+        terrainTextureSDFOutside.filterMode = FilterMode.Bilinear;
+        terrainTextureSDFOutside.wrapMode = TextureWrapMode.Mirror;
+        terrainTextureSDFInside.filterMode = FilterMode.Bilinear;
+        terrainTextureSDFInside.wrapMode = TextureWrapMode.Mirror;
 
-        for (int y = 0; y < terrainSDF.height; ++y)
+        RenderTexture terrainSDF = new RenderTexture(terrainTextureSDFOutside.width, terrainTextureSDFOutside.height, 1, GraphicsFormat.R32_SFloat, 0);
+        terrainSDF.enableRandomWrite = true;
+
         {
-            for (int x = 0; x < terrainSDF.width; ++x)
-            {
-                float dist_outside = terrainTextureSDFOutside.GetPixel(x, y).r;
-                float dist_inside = terrainTextureSDFInside.GetPixel(x, y).r;
+            int kernel = SDFInit.FindKernel("Init");
+            SDFInit.GetKernelThreadGroupSizes(kernel, out uint thread_group_w, out uint thread_group_h, out uint _z);
+            int w = terrainSDF.width / (int)thread_group_w + 1;
+            int h = terrainSDF.width / (int)thread_group_h + 1;
 
-                if (dist_inside <= dist_outside)
-                {
-                    terrainSDF.SetPixel(x, y, new Color(dist_outside, 0f, 0f));
-                }
-                else
-                {
-                    terrainSDF.SetPixel(x, y, new Color(-dist_inside, 0f, 0f));
-                }
-            }
+            SDFInit.SetInt("width", terrainSDF.width);
+            SDFInit.SetInt("height", terrainSDF.height);
+            SDFInit.SetTexture(kernel, "in_DistanceOutside", terrainTextureSDFOutside, 0);
+            SDFInit.SetTexture(kernel, "in_DistanceInside", terrainTextureSDFInside, 0);
+            SDFInit.SetTexture(kernel, "out_SignedDistance", terrainSDF, 0);
+            SDFInit.Dispatch(kernel, w, h, 1);
         }
-        terrainSDF.Apply();
 
-        return terrainSDF;
+        Texture2D terrainSDF_2 = new Texture2D(terrainSDF.width, terrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        terrainSDF_2.wrapMode = TextureWrapMode.Mirror;
+
+        {
+            RenderTexture.active = terrainSDF;
+            terrainSDF_2.ReadPixels(new Rect(0, 0, terrainSDF.width, terrainSDF.height), 0, 0);
+            terrainSDF_2.Apply();
+        }
+
+        return terrainSDF_2;
     }
     public struct SpawnData
     {

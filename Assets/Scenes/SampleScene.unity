@@ -204,6 +204,8 @@ MonoBehaviour:
   terrainColor: {r: 0.18490559, g: 0.15594868, b: 0.15594868, a: 1}
   stoneColor: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
   waterColor: {r: 0.43362755, g: 0.46104047, b: 0.7584905, a: 1}
+  drainColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  scoreText: {fileID: 0}
 --- !u!114 &479015541
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -219,6 +221,7 @@ MonoBehaviour:
   terrainTexture: {fileID: 2800000, guid: ebcf7833ab2d82f458a3426dee5d61b3, type: 3}
   terrainTextureSDFOutside: {fileID: 2800000, guid: e265031e875e14860873fe366b649aa4, type: 3}
   terrainTextureSDFInside: {fileID: 2800000, guid: fe75604072f61828a8a23f2991adfb7d, type: 3}
+  SDFInit: {fileID: 7200000, guid: 2069f52fb176b4bc7a50b2c64415bcb1, type: 3}
   waterTexture: {fileID: 0}
 --- !u!1 &519420028
 GameObject:

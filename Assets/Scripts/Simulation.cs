@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using Unity.Mathematics;
+using UnityEngine.Experimental.Rendering;
 
 public class Simulation : MonoBehaviour
 {
@@ -29,6 +30,8 @@ public class Simulation : MonoBehaviour
 
     // shared with display
     public Texture2D terrainSDF;
+    public RenderTexture terrainSDFEdit;
+    public ComputeShader SDFEdit;
     
     // inferred variables
     public Vector2Int numCells { get; private set; }
@@ -93,6 +96,8 @@ public class Simulation : MonoBehaviour
         SetInitialBufferData();
 
         terrainSDF = initializer.GenerateSDF();
+        terrainSDFEdit = new RenderTexture(terrainSDF.width, terrainSDF.height, 1, GraphicsFormat.R32_SFloat, 0);
+        terrainSDFEdit.enableRandomWrite = true;
 
         // initialize display
         display.Init(this);
@@ -206,6 +211,40 @@ public class Simulation : MonoBehaviour
         lastLoggedScore = -1;
     }
 
+    private void TerrainEdit()
+    {
+        if (Camera.main == null) return;
+    
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        if (Input.GetMouseButton(1))
+        {
+            Graphics.Blit(terrainSDF, terrainSDFEdit);
+
+            {
+                int kernel = SDFEdit.FindKernel("Edit");
+                SDFEdit.GetKernelThreadGroupSizes(kernel, out uint thread_group_w, out uint thread_group_h, out uint _z);
+                int w = terrainSDF.width / (int)thread_group_w + 1;
+                int h = terrainSDF.width / (int)thread_group_h + 1;
+
+                SDFEdit.SetInt("width", terrainSDF.width);
+                SDFEdit.SetInt("height", terrainSDF.height);
+                Debug.Log(boundsSize);
+
+                SDFEdit.SetVector("mousePos", new Vector2(terrainSDF.width, terrainSDF.height) * (mousePos + 0.5f * boundsSize) / boundsSize);
+
+                SDFEdit.SetFloat("interaction_radius", interactionRadius * terrainSDF.width / boundsSize.x);
+
+                SDFEdit.SetTexture(kernel, "Distance", terrainSDFEdit, 0);
+                SDFEdit.Dispatch(kernel, w, h, 1);
+            }
+            {
+                RenderTexture.active = terrainSDFEdit;
+                terrainSDF.ReadPixels(new Rect(0, 0, terrainSDF.width, terrainSDF.height), 0, 0);
+                terrainSDF.Apply();
+            }
+        }
+    }
+
     private void HandleInput()
     {
         // SPACE: pause
@@ -228,6 +267,8 @@ public class Simulation : MonoBehaviour
             isPaused = true;
             SetInitialBufferData();
         }
+
+        TerrainEdit();
     }
 
     // private void OnDestroy()
