@@ -1,0 +1,28 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Init
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float> in_DistanceOutside;
+Texture2D<float> in_DistanceInside;
+SamplerState sampler_in_DistanceOutside;
+SamplerState sampler_in_DistanceInside;
+RWTexture2D<float> out_SignedDistance;
+
+int width;
+int height;
+
+[numthreads(8,8,1)]
+void Init (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)width || id.y >= (uint)height) return;
+
+    float2 uv = float2((float)id.x / width, (float)id.y / height);
+
+    float dist_outside = in_DistanceOutside.SampleLevel(sampler_in_DistanceOutside, uv, 0);
+    float dist_inside = in_DistanceInside.SampleLevel(sampler_in_DistanceInside, uv, 0);
+
+    float signed_distance = dist_inside <= dist_outside ? dist_outside : -dist_inside;
+
+    out_SignedDistance[id.xy] = signed_distance;
+}

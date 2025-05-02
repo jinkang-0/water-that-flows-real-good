@@ -26,7 +26,11 @@ public class Display2D : MonoBehaviour
     private bool needsUpdate;
     
     // shared from simulation
-    private Texture2D terrainSDF;
+    private Texture2D staticTerrainSDF;
+    private Texture2D dynamicTerrainSDF;
+
+    public Texture2D staticTerrainTexture;
+    public Texture2D dynamicTerrainTexture;
 
     // buffers
     private ComputeBuffer cellTypeBuffer;
@@ -41,12 +45,16 @@ public class Display2D : MonoBehaviour
 
     public void Init(Simulation sim)
     {
-        this.terrainSDF = sim.terrainSDF;
+        this.staticTerrainSDF = sim.staticTerrainSDF;
+        this.dynamicTerrainSDF = sim.dynamicTerrainSDF;
 
         gridMaterial = new Material(gridShader);
         particleMaterial = new Material(particleShader);
         terrainMaterial = new Material(terrainShader);
-        terrainMaterial.SetTexture("_MainTex", terrainSDF);
+        terrainMaterial.SetTexture("_StaticDist", staticTerrainSDF);
+        terrainMaterial.SetTexture("_DynamicDist", dynamicTerrainSDF);
+        terrainMaterial.SetTexture("_StaticColor", staticTerrainTexture);
+        terrainMaterial.SetTexture("_DynamicColor", dynamicTerrainTexture);
         needsUpdate = true;
 
         // initialize buffers

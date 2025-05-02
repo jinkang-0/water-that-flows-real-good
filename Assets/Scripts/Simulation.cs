@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using Unity.Mathematics;
+using UnityEngine.Experimental.Rendering;
 
 public class Simulation : MonoBehaviour
 {
@@ -28,7 +29,10 @@ public class Simulation : MonoBehaviour
     public Display2D display;
 
     // shared with display
-    public Texture2D terrainSDF;
+    public Texture2D staticTerrainSDF;
+    public Texture2D dynamicTerrainSDF;
+    public RenderTexture terrainSDFEdit;
+    public ComputeShader SDFEdit;
     
     // inferred variables
     public Vector2Int numCells { get; private set; }
@@ -60,7 +64,7 @@ public class Simulation : MonoBehaviour
     
     private void Start()
     {
-        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, RightClick = Delete");
+        Debug.Log("Controls: Space = Play/Pause, R = Reset, RightArrow = Step, LeftClick = Delete");
         
         // target fps
         float deltaTime = 1 / 60f;
@@ -90,9 +94,13 @@ public class Simulation : MonoBehaviour
 
         // initialize buffer data
         spawnData = initializer.GetSpawnData(numCells, numParticles, cellSize);
-        SetInitialBufferData();
+        staticTerrainSDF = new Texture2D(spawnData.staticTerrainSDF.width, spawnData.staticTerrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        dynamicTerrainSDF = new Texture2D(spawnData.dynamicTerrainSDF.width, spawnData.dynamicTerrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        
+        SetInitialSceneData();
 
-        terrainSDF = initializer.GenerateSDF();
+        terrainSDFEdit = new RenderTexture(dynamicTerrainSDF.width, dynamicTerrainSDF.height, 1, GraphicsFormat.R32_SFloat, 0);
+        terrainSDFEdit.enableRandomWrite = true;
 
         // initialize display
         display.Init(this);
@@ -159,7 +167,8 @@ public class Simulation : MonoBehaviour
         cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
         cpuCompute.PushApartParticles(particlePositions);
         cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
-        cpuCompute.TerrainCollisions(particlePositions, particleVelocities);
+        cpuCompute.TerrainCollisions(dynamicTerrainSDF, particlePositions, particleVelocities);
+        cpuCompute.TerrainCollisions(staticTerrainSDF, particlePositions, particleVelocities);
         cpuCompute.HandleDrainCollisions(cellTypes, particlePositions);
         
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
@@ -172,38 +181,77 @@ public class Simulation : MonoBehaviour
     }
 
     // update compute shader settings
-    private void UpdateSettings(float deltaTime)
+    // private void UpdateSettings(float deltaTime)
+    // {
+    //     // mouse interactions
+    //     if (Camera.main == null) return;
+    //
+    //     Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+    //     int interactionType = 0;
+    //     bool isPush = Input.GetMouseButton(0);
+    //     bool isDelete = Input.GetMouseButton(1);
+    //     if (isPush)
+    //     {
+    //         interactionType = 1;
+    //     } 
+    //     else if (isDelete)
+    //     {
+    //         interactionType = 2;
+    //     }
+    //
+    //     compute.SetVector("interactionInputPoint", mousePos);
+    //     compute.SetInt("interactionInputType", interactionType);
+    // }
+
+    // reset buffer data to spawner data
+    private void SetInitialSceneData()
     {
-        // mouse interactions
+        // initial buffers
+        Array.Copy(spawnData.cellTypes, cellTypes, totalCells);
+        Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
+        Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
+        Array.Copy(spawnData.positions, particlePositions, numParticles); 
+        
+        // set initial SDFs
+        Graphics.CopyTexture(spawnData.staticTerrainSDF, staticTerrainSDF);
+        Graphics.CopyTexture(spawnData.dynamicTerrainSDF, dynamicTerrainSDF);
+        
+        // set score values
+        score = 0;
+        lastLoggedScore = -1;
+    }
+
+    private void TerrainEdit()
+    {
         if (Camera.main == null) return;
     
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        int interactionType = 0;
-        bool isPush = Input.GetMouseButton(0);
-        bool isDelete = Input.GetMouseButton(1);
-        if (isPush)
+        if (Input.GetMouseButton(0))
         {
-            interactionType = 1;
-        } 
-        else if (isDelete)
-        {
-            interactionType = 2;
-        }
-    
-        compute.SetVector("interactionInputPoint", mousePos);
-        compute.SetInt("interactionInputType", interactionType);
-    }
+            Graphics.Blit(dynamicTerrainSDF, terrainSDFEdit);
 
-    // reset buffer data to spawner data
-    private void SetInitialBufferData()
-    {
-        Array.Copy(spawnData.cellTypes, cellTypes, totalCells);
-        Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
-        
-        Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
-        Array.Copy(spawnData.positions, particlePositions, numParticles); 
-        score = 0;
-        lastLoggedScore = -1;
+            {
+                int kernel = SDFEdit.FindKernel("Edit");
+                SDFEdit.GetKernelThreadGroupSizes(kernel, out uint thread_group_w, out uint thread_group_h, out uint _z);
+                int w = dynamicTerrainSDF.width / (int)thread_group_w + 1;
+                int h = dynamicTerrainSDF.width / (int)thread_group_h + 1;
+
+                SDFEdit.SetInt("width", dynamicTerrainSDF.width);
+                SDFEdit.SetInt("height", dynamicTerrainSDF.height);
+
+                SDFEdit.SetVector("mousePos", new Vector2(dynamicTerrainSDF.width, dynamicTerrainSDF.height) * (mousePos + 0.5f * boundsSize) / boundsSize);
+
+                SDFEdit.SetFloat("interaction_radius", interactionRadius * dynamicTerrainSDF.width / boundsSize.x);
+
+                SDFEdit.SetTexture(kernel, "Distance", terrainSDFEdit, 0);
+                SDFEdit.Dispatch(kernel, w, h, 1);
+            }
+            {
+                RenderTexture.active = terrainSDFEdit;
+                dynamicTerrainSDF.ReadPixels(new Rect(0, 0, dynamicTerrainSDF.width, dynamicTerrainSDF.height), 0, 0);
+                dynamicTerrainSDF.Apply();
+            }
+        }
     }
 
     private void HandleInput()
@@ -226,8 +274,10 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             isPaused = true;
-            SetInitialBufferData();
+            SetInitialSceneData();
         }
+
+        TerrainEdit();
     }
 
     // private void OnDestroy()

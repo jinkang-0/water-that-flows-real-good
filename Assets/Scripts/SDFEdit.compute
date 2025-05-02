@@ -1,0 +1,23 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Edit
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float> Distance;
+
+int width;
+int height;
+
+float interaction_radius;
+
+float2 mousePos;
+
+[numthreads(8,8,1)]
+void Edit (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)width || id.y >= (uint)height) return;
+
+    float r = distance(mousePos, float2(id.xy));
+
+    Distance[id.xy] = max(Distance[id.xy], interaction_radius - r);
+}

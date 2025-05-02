@@ -108,7 +108,7 @@ public class CPUCompute
         return new InterpolationData(weights, indices);
     }
     
-    public void TerrainCollisions(float2[] particlePositions, float2[] particleVelocities)
+    public void TerrainCollisions(Texture2D terrainSDF, float2[] particlePositions, float2[] particleVelocities)
     {
 
         for (int i = 0; i < particlePositions.Length; i++)
@@ -117,22 +117,22 @@ public class CPUCompute
             if (particlePositions[i].x < 0) continue;
 
             // position on SDF texture to sample
-            int px = (int)(simulation.terrainSDF.width * particlePositions[i].x / simulation.boundsSize.x);
-            int py = (int)(simulation.terrainSDF.height * particlePositions[i].y / simulation.boundsSize.y);
+            int px = (int)(terrainSDF.width * particlePositions[i].x / simulation.boundsSize.x);
+            int py = (int)(terrainSDF.height * particlePositions[i].y / simulation.boundsSize.y);
 
             // distance to boundary
-            float dist = simulation.terrainSDF.GetPixel(px, py).r;
+            float dist = terrainSDF.GetPixel(px, py).r;
 
             // get distance in world space (the distance textures is in terms of pixels)
-            float dist_world = dist * simulation.boundsSize.x / simulation.terrainSDF.width;
+            float dist_world = dist * simulation.boundsSize.x / terrainSDF.width;
 
             // the particle is inside the terrain
             if (dist_world <= simulation.particleRadius)
             {
                 /// calculate gradient ///
                 // distances at some small delta x and y
-                float dist_dx = simulation.terrainSDF.GetPixel(px + 1, py).r;
-                float dist_dy = simulation.terrainSDF.GetPixel(px, py + 1).r;
+                float dist_dx = terrainSDF.GetPixel(px + 1, py).r;
+                float dist_dy = terrainSDF.GetPixel(px, py + 1).r;
                 // change in distance for small changes in x and y
                 float ddx = dist_dx - dist;
                 float ddy = dist_dy - dist;

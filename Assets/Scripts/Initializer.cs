@@ -7,8 +7,13 @@ public class Initializer : MonoBehaviour
 {
     public Texture2D terrainTexture;
 
-    public Texture2D terrainTextureSDFOutside;
-    public Texture2D terrainTextureSDFInside;
+    public Texture2D dynamicTerrainTextureSDFOutside;
+    public Texture2D dynamicTerrainTextureSDFInside;
+
+    public Texture2D staticTerrainTextureSDFOutside;
+    public Texture2D staticTerrainTextureSDFInside;
+
+    public ComputeShader SDFInit;
 
     public Texture2D waterTexture;
 
@@ -16,32 +21,48 @@ public class Initializer : MonoBehaviour
     private const float threshold = 0.01f;
     private const int DRAIN_CELL = 4;
 
-    public Texture2D GenerateSDF()
+
+    private Texture2D GenerateSDF(Texture2D inside, Texture2D outside)
     {
-        Texture2D terrainSDF = new Texture2D(terrainTextureSDFOutside.width, terrainTextureSDFOutside.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
-        terrainSDF.wrapMode = TextureWrapMode.Mirror;
+        outside.filterMode = FilterMode.Bilinear;
+        outside.wrapMode = TextureWrapMode.Mirror;
+        inside.filterMode = FilterMode.Bilinear;
+        inside.wrapMode = TextureWrapMode.Mirror;
 
-        for (int y = 0; y < terrainSDF.height; ++y)
+        RenderTexture terrainSDF = new RenderTexture(outside.width, outside.height, 1, GraphicsFormat.R32_SFloat, 0);
+        terrainSDF.enableRandomWrite = true;
+
         {
-            for (int x = 0; x < terrainSDF.width; ++x)
-            {
-                float dist_outside = terrainTextureSDFOutside.GetPixel(x, y).r;
-                float dist_inside = terrainTextureSDFInside.GetPixel(x, y).r;
+            int kernel = SDFInit.FindKernel("Init");
+            SDFInit.GetKernelThreadGroupSizes(kernel, out uint thread_group_w, out uint thread_group_h, out uint _z);
+            int w = terrainSDF.width / (int)thread_group_w + 1;
+            int h = terrainSDF.width / (int)thread_group_h + 1;
 
-                if (dist_inside <= dist_outside)
-                {
-                    terrainSDF.SetPixel(x, y, new Color(dist_outside, 0f, 0f));
-                }
-                else
-                {
-                    terrainSDF.SetPixel(x, y, new Color(-dist_inside, 0f, 0f));
-                }
-            }
+            SDFInit.SetInt("width", terrainSDF.width);
+            SDFInit.SetInt("height", terrainSDF.height);
+            SDFInit.SetTexture(kernel, "in_DistanceOutside", outside, 0);
+            SDFInit.SetTexture(kernel, "in_DistanceInside", inside, 0);
+            SDFInit.SetTexture(kernel, "out_SignedDistance", terrainSDF, 0);
+            SDFInit.Dispatch(kernel, w, h, 1);
         }
-        terrainSDF.Apply();
 
-        return terrainSDF;
+        Texture2D terrainSDF_2 = new Texture2D(terrainSDF.width, terrainSDF.height, GraphicsFormat.R32_SFloat, 0, TextureCreationFlags.None);
+        terrainSDF_2.wrapMode = TextureWrapMode.Mirror;
+
+        {
+            RenderTexture.active = terrainSDF;
+            terrainSDF_2.ReadPixels(new Rect(0, 0, terrainSDF.width, terrainSDF.height), 0, 0);
+            terrainSDF_2.Apply();
+        }
+
+        return terrainSDF_2;
     }
+    
+    public (Texture2D staticTerrain, Texture2D dynamicTerrain) GenerateSDFs()
+    {
+        return (GenerateSDF(staticTerrainTextureSDFInside, staticTerrainTextureSDFOutside), GenerateSDF(dynamicTerrainTextureSDFInside, dynamicTerrainTextureSDFOutside));
+    }
+    
     public struct SpawnData
     {
         public int[] cellTypes;
@@ -50,6 +71,8 @@ public class Initializer : MonoBehaviour
         public float2[] particleVelocities;
         public int[] disabledParticles;
         public int[] isCellBucket;
+        public Texture2D staticTerrainSDF;
+        public Texture2D dynamicTerrainSDF;
 
         public SpawnData(int numCells, int numParticles)
         {
@@ -60,6 +83,8 @@ public class Initializer : MonoBehaviour
             particleVelocities = new float2[numParticles];
             disabledParticles = new int[numParticles];
             isCellBucket = new int[numCells];
+            staticTerrainSDF = null;
+            dynamicTerrainSDF = null;
         }
     }
 
@@ -68,46 +93,10 @@ public class Initializer : MonoBehaviour
         int totalCells = gridSize.x * gridSize.y;
         var data = new SpawnData(totalCells, numParticles);
         
-        // generate terrain from texture
-        if (terrainTexture != null && terrainTexture.isReadable)
-        {
-            int textureWidth = terrainTexture.width;
-            int textureHeight = terrainTexture.height;
+        // generate terrain SDFs
+        data.staticTerrainSDF = GenerateSDF(staticTerrainTextureSDFInside, staticTerrainTextureSDFOutside);
+        data.dynamicTerrainSDF = GenerateSDF(dynamicTerrainTextureSDFInside, dynamicTerrainTextureSDFOutside);
 
-            for (int row = 0; row < gridSize.y; row++)
-            {
-                for (int col = 0; col < gridSize.x; col++)
-                {
-                    int cellIndex = row * gridSize.x + col;
-
-                    // calculate where in the pixel space we are sampling from
-                    float normalizedX = (col + 0.5f) / gridSize.x;
-                    float normalizedY = (row + 0.5f) / gridSize.y;
-
-                    int pixelX = Mathf.FloorToInt(normalizedX * textureWidth);
-                    int pixelY = Mathf.FloorToInt(normalizedY * textureHeight);
-
-                    // clamp the coordinates
-                    pixelX = Mathf.Clamp(pixelX, 0, textureWidth - 1);
-                    pixelY = Mathf.Clamp(pixelY, 0, textureHeight - 1);
-
-                    // use the Get Pixel method to see the color
-                    Color pixelColor = terrainTexture.GetPixel(pixelX, pixelY);
-
-                    // check if the pixel is black or not
-                    if (pixelColor.r > threshold || pixelColor.g > threshold || pixelColor.b > threshold)
-                        data.cellTypes[cellIndex] = 1;
-                    else
-                        data.cellTypes[cellIndex] = 0;
-                }
-            }
-        }
-        else
-        {
-            // in case there is no level texture set
-            Debug.LogError(terrainTexture == null ? "level layout is not assigned" : "Failed To Read Level Image.");
-        }
-        
         // generate water from texture
         if (waterTexture != null && waterTexture.isReadable)
         {
@@ -184,19 +173,6 @@ public class Initializer : MonoBehaviour
             {
                 data.positions[i] = (center + spread * (rng.NextFloat2() - 0.5f)) * cellSize;
             }
-        }
-        
-        // generate bounding box
-        for (int i = 0; i < gridSize.x; i++)
-        {
-            data.cellTypes[i] = 2;
-            data.cellTypes[gridSize.x * (gridSize.y - 1) + i] = 2;
-        }
-
-        for (int i = 1; i < gridSize.y - 1; i++)
-        {
-            data.cellTypes[gridSize.x * i] = 2;
-            data.cellTypes[gridSize.x * i + gridSize.x - 1] = 2;
         }
 
         int drainSize = 5;
