@@ -16,6 +16,7 @@ public class Initializer : MonoBehaviour
     public ComputeShader SDFInit;
 
     public Texture2D waterTexture;
+    public Texture2D drainTexture;
 
     // this is the threshold to check if color is black or not
     private const float threshold = 0.01f;
@@ -96,7 +97,43 @@ public class Initializer : MonoBehaviour
         // generate terrain SDFs
         data.staticTerrainSDF = GenerateSDF(staticTerrainTextureSDFInside, staticTerrainTextureSDFOutside);
         data.dynamicTerrainSDF = GenerateSDF(dynamicTerrainTextureSDFInside, dynamicTerrainTextureSDFOutside);
+        
+        // generate drain from texture
+        if (drainTexture != null && drainTexture.isReadable)
+        {
+            int textureWidth = drainTexture.width;
+            int textureHeight = drainTexture.height;
+            var drainCells = new List<int>();
 
+            for (int row = 0; row < gridSize.y; row++)
+            {
+                for (int col = 0; col < gridSize.x; col++)
+                {
+                    // calculate where in the pixel space we are sampling from
+                    float normalizedX = (col + 0.5f) / gridSize.x;
+                    float normalizedY = (row + 0.5f) / gridSize.y;
+
+                    int pixelX = Mathf.FloorToInt(normalizedX *textureWidth);
+                    int pixelY = Mathf.FloorToInt(normalizedY * textureHeight);
+
+                    // clamp the coordinates
+                    pixelX = Mathf.Clamp(pixelX, 0, textureWidth - 1);
+                    pixelY = Mathf.Clamp(pixelY, 0, textureHeight - 1);
+
+                    // use the Get Pixel method to see the color
+                    Color pixelColor = waterTexture.GetPixel(pixelX, pixelY);
+
+                    // check if the pixel is filled
+                    if (pixelColor.a > threshold)
+                    {
+                        int cellIndex = row * gridSize.x + col;
+                        data.cellTypes[cellIndex] = DRAIN_CELL;
+                        drainCells.Add(cellIndex);
+                    }
+                }
+            }
+        }
+        
         // generate water from texture
         if (waterTexture != null && waterTexture.isReadable)
         {
@@ -175,19 +212,19 @@ public class Initializer : MonoBehaviour
             }
         }
 
-        int drainSize = 5;
-        int drainStartX = gridSize.x - drainSize - 1;
-        int drainStartY = 1;
+        // int drainSize = 5;
+        // int drainStartX = gridSize.x - drainSize - 1;
+        // int drainStartY = 1;
 
-        for (int row = drainStartY; row < drainStartY + drainSize && row < gridSize.y - 1; row++)
-        {
-            for (int col = drainStartX; col < drainStartX + drainSize && col < gridSize.x - 1; col++)
-            {
-                int cellIndex = row * gridSize.x + col;
-                if(data.cellTypes[cellIndex] == 0)
-                    data.cellTypes[cellIndex] = DRAIN_CELL;
-            }
-        }
+        // for (int row = drainStartY; row < drainStartY + drainSize && row < gridSize.y - 1; row++)
+        // {
+        //     for (int col = drainStartX; col < drainStartX + drainSize && col < gridSize.x - 1; col++)
+        //     {
+        //         int cellIndex = row * gridSize.x + col;
+        //         if(data.cellTypes[cellIndex] == 0)
+        //             data.cellTypes[cellIndex] = DRAIN_CELL;
+        //     }
+        // }
 
         // generate random velocities
         // var rng = new Unity.Mathematics.Random(42);
