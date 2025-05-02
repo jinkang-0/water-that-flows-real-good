@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 [SuppressMessage("ReSharper", "Unity.PreferAddressByIdToGraphicsParams")]
 public class Display2D : MonoBehaviour
@@ -32,6 +34,8 @@ public class Display2D : MonoBehaviour
     private ComputeBuffer particlePositionBuffer;
     private ComputeBuffer particleActiveBuffer;
     private ComputeBuffer particleVelocityBuffer;
+
+    public TMP_Text scoreText;
 
     private Simulation simulation;
 
@@ -77,8 +81,14 @@ public class Display2D : MonoBehaviour
         particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
         
+        // Update score text
+        if (scoreText != null)
+        {
+            scoreText.text = $"Score: {simulation.score}";
+        }
+        
         Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
-        //Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer);
+        Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer); 
         Graphics.DrawMeshInstancedIndirect(mesh, 0, particleMaterial, bounds, particleArgsBuffer);
     }
 
