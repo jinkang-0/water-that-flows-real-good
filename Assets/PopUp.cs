@@ -10,7 +10,7 @@ public class PopUp : MonoBehaviour
     public Simulation sim;
 
     public void Update() {
-        if (sim.score >= sim.numParticles * 2/3 && !popupObject.activeSelf)
+        if (sim.score >= sim.numParticles * 3/5 && !popupObject.activeSelf)
         {
             popupObject.SetActive(true);
         }
