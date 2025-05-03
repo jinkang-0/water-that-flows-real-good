@@ -48,6 +48,8 @@ public class Simulation : MonoBehaviour
     private Initializer.SpawnData spawnData;
     private CPUCompute cpuCompute;
     private float restDensity = 0;
+    private static readonly Vector2 inactiveMousePos = new Vector2(-100, -100);
+    private Vector2 lastMousePos = inactiveMousePos;
 
     // buffers
     public int[] cellTypes { get; private set; }
@@ -256,7 +258,14 @@ public class Simulation : MonoBehaviour
                 SDFEdit.SetInt("width", dynamicTerrainSDF.width);
                 SDFEdit.SetInt("height", dynamicTerrainSDF.height);
 
-                SDFEdit.SetVector("mousePos", new Vector2(dynamicTerrainSDF.width, dynamicTerrainSDF.height) * (mousePos + 0.5f * boundsSize) / boundsSize);
+                var currMousePos = new Vector2(dynamicTerrainSDF.width, dynamicTerrainSDF.height) *
+                    (mousePos + 0.5f * boundsSize) / boundsSize;
+                
+                SDFEdit.SetVector("lastMousePos", lastMousePos);
+                SDFEdit.SetVector("mousePos", currMousePos);
+                
+                // update state
+                lastMousePos = currMousePos;
 
                 SDFEdit.SetFloat("interaction_radius", interactionRadius * dynamicTerrainSDF.width / boundsSize.x);
 
@@ -268,6 +277,10 @@ public class Simulation : MonoBehaviour
                 dynamicTerrainSDF.ReadPixels(new Rect(0, 0, dynamicTerrainSDF.width, dynamicTerrainSDF.height), 0, 0);
                 dynamicTerrainSDF.Apply();
             }
+        }
+        else
+        {
+            lastMousePos = inactiveMousePos;
         }
     }
 
