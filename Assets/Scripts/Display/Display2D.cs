@@ -16,6 +16,7 @@ public class Display2D : MonoBehaviour
     public Shader gridShader;
     public Shader particleShader;
     public Shader terrainShader;
+    public Shader backgroundShader;
     public Color terrainColor;
     public Color stoneColor;
     public Color waterColor;
@@ -25,6 +26,7 @@ public class Display2D : MonoBehaviour
     private Material gridMaterial;
     private Material particleMaterial;
     private Material terrainMaterial;
+    private Material backgroundMaterial;
     private ComputeBuffer gridArgsBuffer;
     // private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
@@ -36,6 +38,8 @@ public class Display2D : MonoBehaviour
 
     public Texture2D staticTerrainTexture;
     public Texture2D dynamicTerrainTexture;
+
+    public Texture2D backgroundTexture;
 
     // buffers
     private ComputeBuffer cellTypeBuffer;
@@ -57,11 +61,14 @@ public class Display2D : MonoBehaviour
 
         gridMaterial = new Material(gridShader);
         particleMaterial = new Material(particleShader);
+        particleMaterial.SetTexture("_BGTex", backgroundTexture);
         terrainMaterial = new Material(terrainShader);
         terrainMaterial.SetTexture("_StaticDist", staticTerrainSDF);
         terrainMaterial.SetTexture("_DynamicDist", dynamicTerrainSDF);
         terrainMaterial.SetTexture("_StaticColor", staticTerrainTexture);
         terrainMaterial.SetTexture("_DynamicColor", dynamicTerrainTexture);
+        backgroundMaterial = new Material(backgroundShader);
+        backgroundMaterial.SetTexture("_MainTex", backgroundTexture);
         needsUpdate = true;
 
         // initialize buffers
@@ -107,6 +114,7 @@ public class Display2D : MonoBehaviour
             scoreText.text = $"Score: {simulation.score}";
         }
         
+        Graphics.DrawMeshInstancedProcedural(mesh, 0, backgroundMaterial, bounds, 1);
         Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
         Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer); 
         Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
@@ -142,6 +150,9 @@ public class Display2D : MonoBehaviour
 
         terrainMaterial.SetFloat("scale", scale);
         terrainMaterial.SetVector("boundsSize", simulation.boundsSize);
+
+        backgroundMaterial.SetFloat("scale", scale);
+        backgroundMaterial.SetVector("boundsSize", simulation.boundsSize);
     }
 
     private void OnValidate()
