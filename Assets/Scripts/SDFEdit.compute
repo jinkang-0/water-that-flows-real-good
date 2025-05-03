@@ -10,6 +10,7 @@ int height;
 
 float interaction_radius;
 
+float2 lastMousePos;
 float2 mousePos;
 
 [numthreads(8,8,1)]
@@ -17,7 +18,37 @@ void Edit (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint)width || id.y >= (uint)height) return;
 
-    float r = distance(mousePos, float2(id.xy));
+    const float2 c = float2(id.xy);
 
-    Distance[id.xy] = max(Distance[id.xy], interaction_radius - r);
+    // no previous mouse position
+    if (lastMousePos.x == -100 && lastMousePos.y == -100)
+    {
+        const float r = distance(mousePos, c);
+        Distance[id.xy] = max(Distance[id.xy], interaction_radius - r);
+    }
+    else
+    {
+        // find the line between last and current mouse pos
+        const float2 a = lastMousePos;
+        const float2 b = mousePos;
+        const float2 ab = b - a;
+        
+        // project current pixel onto line
+        const float2 ac = c - a;
+        const float l = length(ab);
+        const float t = dot(ab, ac) / l;
+        const float2 d = a + ab * t / l;
+        
+        float r = interaction_radius;
+        
+        // compute relevant radius
+        if (t < 0)
+            r = distance(a, c);
+        else if (t > l)
+            r = distance(b, c);
+        else
+            r = distance(d, c);
+        
+        Distance[id.xy] = max(Distance[id.xy], interaction_radius - r);
+    }
 }
