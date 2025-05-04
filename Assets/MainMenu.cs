@@ -10,8 +10,12 @@ public class MainMenu : MonoBehaviour
         SceneManager.LoadSceneAsync(1);
     }
 
-    public void SpecialDemo() {
+    public void SpecialDemo1() {
         SceneManager.LoadSceneAsync(9);
+    }
+
+        public void SpecialDemo2() {
+        SceneManager.LoadSceneAsync(10);
     }
 
     public void QuitGame() {

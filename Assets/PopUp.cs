@@ -23,7 +23,8 @@ public class PopUp : MonoBehaviour
             { 6, sim.numParticles * 3/4 },
             { 7, sim.numParticles * 1/10 },
             { 8, sim.numParticles * 1/50 }, 
-            { 9, sim.numParticles * 3/4 } 
+            { 9, sim.numParticles * 2/4 } ,
+            { 10, sim.numParticles * 3/4 } 
         };
 
         if (sim.score >= levelScores[levelnum] && !popupObject.activeSelf)
