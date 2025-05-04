@@ -183,15 +183,15 @@ public class Simulation : MonoBehaviour
     private void RunSimulationStep(float deltaTime)
     {
         // simulate particle physics
-        cpuCompute.SimulateParticles(particlePositions, particleVelocities, gravity, deltaTime);
-        cpuCompute.PushApartParticles(particlePositions, particleCounts, lookupStartIndices, particleLookup);
-        cpuCompute.ConstrainToBounds(particlePositions, particleVelocities);
-        cpuCompute.TerrainCollisions(dynamicTerrainSDF, particlePositions, particleVelocities);
-        cpuCompute.TerrainCollisions(staticTerrainSDF, particlePositions, particleVelocities);
-        cpuCompute.HandleDrainCollisions(cellTypes, particlePositions);
+        cpuCompute.SimulateParticles(particlePositions, particleVelocities, disabledParticles, gravity, deltaTime);
+        cpuCompute.PushApartParticles(particlePositions, particleCounts, lookupStartIndices, particleLookup, disabledParticles);
+        cpuCompute.TerrainCollisions(dynamicTerrainSDF, particlePositions, particleVelocities, disabledParticles);
+        cpuCompute.TerrainCollisions(staticTerrainSDF, particlePositions, particleVelocities, disabledParticles);
+        cpuCompute.ConstrainToBounds(particlePositions, particleVelocities, disabledParticles);
+        cpuCompute.HandleDrainCollisions(cellTypes, particlePositions, disabledParticles);
         
         cpuCompute.VelocityTransferParticle(cellTypes, cellVelocities, cellWeights, particlePositions, particleVelocities, disabledParticles);
-        restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, restDensity);
+        restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, disabledParticles, restDensity);
         cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity);
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles);
 

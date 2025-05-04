@@ -108,13 +108,13 @@ public class CPUCompute
         return new InterpolationData(weights, indices);
     }
     
-    public void TerrainCollisions(Texture2D terrainSDF, float2[] particlePositions, float2[] particleVelocities)
+    public void TerrainCollisions(Texture2D terrainSDF, float2[] particlePositions, float2[] particleVelocities, int[] disabledParticles)
     {
 
         for (int i = 0; i < particlePositions.Length; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             // position on SDF texture to sample
             int px = (int)(terrainSDF.width * particlePositions[i].x / simulation.boundsSize.x);
@@ -170,7 +170,7 @@ public class CPUCompute
     // fluid sim pipelines
     //
 
-    public void HandleDrainCollisions(int[] cellTypes, float2[] particlePositions)
+    public void HandleDrainCollisions(int[] cellTypes, float2[] particlePositions, int[] disabledParticles)
     {
         var numParticles = particlePositions.Length;
         var size = simulation.numCells;
@@ -179,7 +179,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Check if particle is already removed
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
 
@@ -192,12 +192,13 @@ public class CPUCompute
             {
                 simulation.score++;
                 // Remove the particle
-                particlePositions[i] = new float2(-1000f, -1000f); 
+                particlePositions[i] = new float2(-1000f, -1000f);
+                disabledParticles[i] = 1;
             }
         }
     }
 
-    public void SimulateParticles(float2[] particlePositions, float2[] particleVelocities, float gravity, float deltaTime)
+    public void SimulateParticles(float2[] particlePositions, float2[] particleVelocities, int[] disabledParticles, float gravity, float deltaTime)
     {
         var numParticles = particlePositions.Length;
 
@@ -205,14 +206,14 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             particleVelocities[i].y += gravity * deltaTime;
             particlePositions[i] += particleVelocities[i] * deltaTime;
         }
     }
 
-    public void ConstrainToBounds(float2[] particlePositions, float2[] particleVelocities)
+    public void ConstrainToBounds(float2[] particlePositions, float2[] particleVelocities, int[] disabledParticles)
     {
         var numParticles = particlePositions.Length;
         var cellSize = simulation.cellSize;
@@ -229,7 +230,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
             if (pos.x < minX)
@@ -283,7 +284,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
             var col = Mathf.Clamp(Mathf.FloorToInt(pos.x / cellSize), 0, size.x - 1);
@@ -297,39 +298,39 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            if (disabledParticles[i] == 0 && particlePositions[i].x >= 0) {
-                var pos = particlePositions[i];
+            if (disabledParticles[i] == 1) continue;
+            
+            var pos = particlePositions[i];
 
-                // get interpolation data
-                var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f * cellSize));
-                var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f * cellSize, 0f));
+            // get interpolation data
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f * cellSize));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f * cellSize, 0f));
 
-                var ui = uInterpolation.indices;
-                var uw = uInterpolation.weights;
-                var vi = vInterpolation.indices;
-                var vw = vInterpolation.weights;
-                
-                var pv = particleVelocities[i];
-                
-                // initiate transfer
-                cellVelocities[ui[0]].x += pv.x * uw[0];
-                cellVelocities[ui[1]].x += pv.x * uw[1];
-                cellVelocities[ui[2]].x += pv.x * uw[2];
-                cellVelocities[ui[3]].x += pv.x * uw[3];
-                cellWeights[ui[0]].x += uw[0];
-                cellWeights[ui[1]].x += uw[1];
-                cellWeights[ui[2]].x += uw[2];
-                cellWeights[ui[3]].x += uw[3];
+            var ui = uInterpolation.indices;
+            var uw = uInterpolation.weights;
+            var vi = vInterpolation.indices;
+            var vw = vInterpolation.weights;
+            
+            var pv = particleVelocities[i];
+            
+            // initiate transfer
+            cellVelocities[ui[0]].x += pv.x * uw[0];
+            cellVelocities[ui[1]].x += pv.x * uw[1];
+            cellVelocities[ui[2]].x += pv.x * uw[2];
+            cellVelocities[ui[3]].x += pv.x * uw[3];
+            cellWeights[ui[0]].x += uw[0];
+            cellWeights[ui[1]].x += uw[1];
+            cellWeights[ui[2]].x += uw[2];
+            cellWeights[ui[3]].x += uw[3];
 
-                cellVelocities[vi[0]].y += pv.y * vw[0];
-                cellVelocities[vi[1]].y += pv.y * vw[1];
-                cellVelocities[vi[2]].y += pv.y * vw[2];
-                cellVelocities[vi[3]].y += pv.y * vw[3];
-                cellWeights[vi[0]].y += vw[0];
-                cellWeights[vi[1]].y += vw[1];
-                cellWeights[vi[2]].y += vw[2];
-                cellWeights[vi[3]].y += vw[3];
-            }
+            cellVelocities[vi[0]].y += pv.y * vw[0];
+            cellVelocities[vi[1]].y += pv.y * vw[1];
+            cellVelocities[vi[2]].y += pv.y * vw[2];
+            cellVelocities[vi[3]].y += pv.y * vw[3];
+            cellWeights[vi[0]].y += vw[0];
+            cellWeights[vi[1]].y += vw[1];
+            cellWeights[vi[2]].y += vw[2];
+            cellWeights[vi[3]].y += vw[3];
         }
         
         for (int i = 0; i < numCells; i++)
@@ -364,52 +365,52 @@ public class CPUCompute
         // notation: U = grid horizontal velocity, V = grid vertical velocity
         for (int i = 0; i < numParticles; i++)
         {
-            if (disabledParticles[i] == 0 && particlePositions[i].x >= 0) {
-                var pos = particlePositions[i];
+            if (disabledParticles[i] == 1) continue;
+            
+            var pos = particlePositions[i];
 
-                // get interpolation data
-                var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f * cellSize));
-                var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f * cellSize, 0f));
+            // get interpolation data
+            var uInterpolation = ParticleCellInterpolation(pos, new float2(0f, 0.5f * cellSize));
+            var vInterpolation = ParticleCellInterpolation(pos, new float2(0.5f * cellSize, 0f));
 
-                var ui = uInterpolation.indices;
-                var uw = uInterpolation.weights;
-                var vi = vInterpolation.indices;
-                var vw = vInterpolation.weights;
+            var ui = uInterpolation.indices;
+            var uw = uInterpolation.weights;
+            var vi = vInterpolation.indices;
+            var vw = vInterpolation.weights;
 
-                // check cell validity
-                var uValid0 = cellTypes[ui[0]] != AIR_CELL || cellTypes[ui[0] - 1] != AIR_CELL ? 1f : 0f;
-                var uValid1 = cellTypes[ui[1]] != AIR_CELL || cellTypes[ui[1] - 1] != AIR_CELL ? 1f : 0f;
-                var uValid2 = cellTypes[ui[2]] != AIR_CELL || cellTypes[ui[2] - 1] != AIR_CELL ? 1f : 0f;
-                var uValid3 = cellTypes[ui[3]] != AIR_CELL || cellTypes[ui[3] - 1] != AIR_CELL ? 1f : 0f;
+            // check cell validity
+            var uValid0 = cellTypes[ui[0]] != AIR_CELL || cellTypes[ui[0] - 1] != AIR_CELL ? 1f : 0f;
+            var uValid1 = cellTypes[ui[1]] != AIR_CELL || cellTypes[ui[1] - 1] != AIR_CELL ? 1f : 0f;
+            var uValid2 = cellTypes[ui[2]] != AIR_CELL || cellTypes[ui[2] - 1] != AIR_CELL ? 1f : 0f;
+            var uValid3 = cellTypes[ui[3]] != AIR_CELL || cellTypes[ui[3] - 1] != AIR_CELL ? 1f : 0f;
 
-                var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] - size.x] != AIR_CELL ? 1f : 0f;
-                var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] - size.x] != AIR_CELL ? 1f : 0f;
-                var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] - size.x] != AIR_CELL ? 1f : 0f;
-                var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid0 = cellTypes[vi[0]] != AIR_CELL || cellTypes[vi[0] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid1 = cellTypes[vi[1]] != AIR_CELL || cellTypes[vi[1] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid2 = cellTypes[vi[2]] != AIR_CELL || cellTypes[vi[2] - size.x] != AIR_CELL ? 1f : 0f;
+            var vValid3 = cellTypes[vi[3]] != AIR_CELL || cellTypes[vi[3] - size.x] != AIR_CELL ? 1f : 0f;
 
-                // interpolate velocities
-                var uWeight = uValid0 * uw[0] + uValid1 * uw[1] + uValid2 * uw[2] + uValid3 * uw[3];
-                var vWeight = vValid0 * vw[0] + vValid1 * vw[1] + vValid2 * vw[2] + vValid3 * vw[3];
+            // interpolate velocities
+            var uWeight = uValid0 * uw[0] + uValid1 * uw[1] + uValid2 * uw[2] + uValid3 * uw[3];
+            var vWeight = vValid0 * vw[0] + vValid1 * vw[1] + vValid2 * vw[2] + vValid3 * vw[3];
 
-                if (uWeight > 0f)
-                {
-                    var uq0 = uValid0 * uw[0] * cellVelocities[ui[0]].x;
-                    var uq1 = uValid1 * uw[1] * cellVelocities[ui[1]].x;
-                    var uq2 = uValid2 * uw[2] * cellVelocities[ui[2]].x;
-                    var uq3 = uValid3 * uw[3] * cellVelocities[ui[3]].x;
-                    var picVx = (uq0 + uq1 + uq2 + uq3) / uWeight;
-                    particleVelocities[i].x = picVx;
-                }
+            if (uWeight > 0f)
+            {
+                var uq0 = uValid0 * uw[0] * cellVelocities[ui[0]].x;
+                var uq1 = uValid1 * uw[1] * cellVelocities[ui[1]].x;
+                var uq2 = uValid2 * uw[2] * cellVelocities[ui[2]].x;
+                var uq3 = uValid3 * uw[3] * cellVelocities[ui[3]].x;
+                var picVx = (uq0 + uq1 + uq2 + uq3) / uWeight;
+                particleVelocities[i].x = picVx;
+            }
 
-                if (vWeight > 0f)
-                {
-                    var vq0 = vValid0 * vw[0] * cellVelocities[vi[0]].y;
-                    var vq1 = vValid1 * vw[1] * cellVelocities[vi[1]].y;
-                    var vq2 = vValid2 * vw[2] * cellVelocities[vi[2]].y;
-                    var vq3 = vValid3 * vw[3] * cellVelocities[vi[3]].y;
-                    var picVy = (vq0 + vq1 + vq2 + vq3) / vWeight;
-                    particleVelocities[i].y = picVy;
-                }
+            if (vWeight > 0f)
+            {
+                var vq0 = vValid0 * vw[0] * cellVelocities[vi[0]].y;
+                var vq1 = vValid1 * vw[1] * cellVelocities[vi[1]].y;
+                var vq2 = vValid2 * vw[2] * cellVelocities[vi[2]].y;
+                var vq3 = vValid3 * vw[3] * cellVelocities[vi[3]].y;
+                var picVy = (vq0 + vq1 + vq2 + vq3) / vWeight;
+                particleVelocities[i].y = picVy;
             }
         }
     }
@@ -468,10 +469,9 @@ public class CPUCompute
         }
     }
 
-    public void PushApartParticles(float2[] particlePositions, int[] counts, int[] startIndices, int[] particleIndices)
+    public void PushApartParticles(float2[] particlePositions, int[] counts, int[] startIndices, int[] particleIndices, int[] disabledParticles)
     {
         var numParticles = particlePositions.Length;
-        var bounds = simulation.boundsSize;
         var partitionSpacing = simulation.partitionSpacing;
         var partitionNumX = simulation.partitionNumX;
         var partitionNumY = simulation.partitionNumY;
@@ -490,7 +490,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
             var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
@@ -513,7 +513,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
             var x = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
@@ -532,7 +532,7 @@ public class CPUCompute
             for (int i = 0; i < numParticles; i++)
             {
                 // Skip removed particles
-                if (particlePositions[i].x < 0) continue;
+                if (disabledParticles[i] == 1) continue;
 
                 var pos = particlePositions[i];
                 var px = Mathf.Clamp(Mathf.FloorToInt(pos.x / partitionSpacing), 0, partitionNumX - 1);
@@ -589,7 +589,7 @@ public class CPUCompute
         return numFluidCells > 0 ? totalFluidDensity / numFluidCells : 0;
     }
 
-    public float ComputeDensities(int[] cellTypes, float2[] particlePositions, float[] densities, float restDensity)
+    public float ComputeDensities(int[] cellTypes, float2[] particlePositions, float[] densities, int[] disabledParticles, float restDensity)
     {
         var numParticles = particlePositions.Length;
         var numCells = densities.Length;
@@ -605,7 +605,7 @@ public class CPUCompute
         for (int i = 0; i < numParticles; i++)
         {
             // Skip removed particles
-            if (particlePositions[i].x < 0) continue;
+            if (disabledParticles[i] == 1) continue;
 
             var pos = particlePositions[i];
             var intData = ParticleCellInterpolation(pos, 0.5f * cellSize);
