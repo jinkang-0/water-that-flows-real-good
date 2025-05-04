@@ -211,9 +211,9 @@ MonoBehaviour:
   stoneColor: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
   waterColor: {r: 0.43362755, g: 0.46104047, b: 0.7584905, a: 1}
   drainColor: {r: 0.7764706, g: 0.7490196, b: 0.5058824, a: 0}
-  staticTerrainTexture: {fileID: 2800000, guid: d0df4fe4a582249f3970bc79bbb2305d, type: 3}
-  dynamicTerrainTexture: {fileID: 2800000, guid: 367508f2a965f4f6f9f49b31001548cf, type: 3}
-  backgroundTexture: {fileID: 2800000, guid: f5e4ce453e0af4e35ba9dcaedb37bd3c, type: 3}
+  staticTerrainTexture: {fileID: 2800000, guid: 929ecdf993f0b4752b8cc3a789a568dc, type: 3}
+  dynamicTerrainTexture: {fileID: 2800000, guid: c94738bd2b8ff4238bc2bca99c9a0704, type: 3}
+  backgroundTexture: {fileID: 2800000, guid: 3537ac2a0b4854663a4bdef0a25bad8c, type: 3}
   scoreText: {fileID: 0}
 --- !u!114 &479015541
 MonoBehaviour:
@@ -227,7 +227,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 335de13571c0b3e4fa9337087516b978, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  terrainTexture: {fileID: 2800000, guid: 367508f2a965f4f6f9f49b31001548cf, type: 3}
+  terrainTexture: {fileID: 2800000, guid: c94738bd2b8ff4238bc2bca99c9a0704, type: 3}
   dynamicTerrainTextureSDFOutside: {fileID: 2800000, guid: 73e08454c9ef172e29637130b499a039, type: 3}
   dynamicTerrainTextureSDFInside: {fileID: 2800000, guid: 19ccbc464664dadc39bcbdf391aeddf7, type: 3}
   staticTerrainTextureSDFOutside: {fileID: 2800000, guid: db5c1f0a9b59f4fa3a94842f23d4af05, type: 3}
