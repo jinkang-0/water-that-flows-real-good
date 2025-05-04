@@ -158,7 +158,7 @@ MonoBehaviour:
   iterationsPerFrame: 1
   maxBounds: {x: 16, y: 9}
   cellResolution: 72
-  numParticles: 2300
+  numParticles: 2500
   particleDensity: 3
   gravity: -9.81
   stiffness: 1
