@@ -241,16 +241,21 @@
         <section>
           <h3>Challenges</h3>
           <p>
-            Initially, we planned to take advantage of the simplicity of compute
-            shaders in Unity to parallelize and speed up our simulation
-            computations. Unfortunately, we only realized half way through
-            implementation that the PIC/FLIP simulation would require a lot more
-            effort to parallelize as the velocity transfer required an
-            accumulation of velocities from nearby particles, which would
-            trigger data races when parallelized. There are certainly
-            workarounds, but we didn't think we would be able to achieve our MVP
-            in time if we were to pursue them, so we caved in and switched to an
-            all CPU approach. Fortunately, it is still reasonably fast.
+            Initially, we planned to take advantage of the simplicity 
+            of compute shaders in Unity to parallelize and speed up 
+            our simulation computations. Unfortunately, we only 
+            realized halfway through implementation that the PIC/FLIP 
+            simulation would require a lot more effort to parallelize, 
+            as the velocity transfer required an accumulation of velocities 
+            from nearby particles, which would trigger data races when parallelized.
+          </p>
+          <p>
+            There are certainly workarounds (including map reduce methods), 
+            but we didn't think we would be able to achieve our MVP in time 
+            if we were to pursue them, so we caved in and switched to an all-CPU 
+            approach to produce a working demo. Fortunately, we were able to reuse
+            our compute shader code for modifying the distance field, which allowed us to
+            speed up texture manipulation for terrain destruction considerably.
           </p>
           <p>
             During development, we realized that the particles move extremely
