@@ -6,9 +6,8 @@ Shader "Custom/Particle2D"
     }
     SubShader
     {
-        Tags { "RenderType"="Transparent" "Queue"="Overlay" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         Blend SrcAlpha OneMinusSrcAlpha
-        ZWrite Off
         
         Pass {
             CGPROGRAM
