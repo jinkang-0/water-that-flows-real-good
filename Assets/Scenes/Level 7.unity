@@ -158,7 +158,7 @@ MonoBehaviour:
   iterationsPerFrame: 1
   maxBounds: {x: 16, y: 9}
   cellResolution: 72
-  numParticles: 2500
+  numParticles: 2000
   particleDensity: 3
   gravity: -9.81
   stiffness: 1
@@ -213,7 +213,7 @@ MonoBehaviour:
   drainColor: {r: 0.7764706, g: 0.7490196, b: 0.5058824, a: 0}
   staticTerrainTexture: {fileID: 2800000, guid: b518b7d74afb64f26988e0413370c63e, type: 3}
   dynamicTerrainTexture: {fileID: 2800000, guid: 7f89f00a5b4084555b94a8271f54c820, type: 3}
-  backgroundTexture: {fileID: 2800000, guid: ccdbb68534c424f92a6ed90b9a134d7c, type: 3}
+  backgroundTexture: {fileID: 2800000, guid: f796086f38aae4b1da2ca38ca3a4f83f, type: 3}
   scoreText: {fileID: 0}
 --- !u!114 &479015541
 MonoBehaviour:
