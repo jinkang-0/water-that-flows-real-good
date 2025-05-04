@@ -213,7 +213,7 @@ MonoBehaviour:
   drainColor: {r: 0.7764706, g: 0.7490196, b: 0.5058824, a: 0}
   staticTerrainTexture: {fileID: 2800000, guid: 6795e1af2b7fc47628b48a48b94eb4d4, type: 3}
   dynamicTerrainTexture: {fileID: 2800000, guid: d030335f4908a41d79dbc668b8f510e2, type: 3}
-  backgroundTexture: {fileID: 2800000, guid: f1ec8babd09ca4020babac66eeeb996d, type: 3}
+  backgroundTexture: {fileID: 2800000, guid: 5bb5da38491474b1eae9657286b72b2a, type: 3}
   scoreText: {fileID: 0}
 --- !u!114 &479015541
 MonoBehaviour:
