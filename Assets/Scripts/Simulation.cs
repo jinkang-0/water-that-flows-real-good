@@ -229,7 +229,8 @@ public class Simulation : MonoBehaviour
         Array.Copy(spawnData.cellTypes, cellTypes, totalCells);
         Array.Copy(spawnData.cellVelocities, cellVelocities, totalCells);
         Array.Copy(spawnData.particleVelocities, particleVelocities, numParticles);
-        Array.Copy(spawnData.positions, particlePositions, numParticles); 
+        Array.Copy(spawnData.positions, particlePositions, numParticles);
+        Array.Copy(spawnData.disabledParticles, disabledParticles, numParticles);
         
         // set initial SDFs
         Graphics.CopyTexture(spawnData.staticTerrainSDF, staticTerrainSDF);
