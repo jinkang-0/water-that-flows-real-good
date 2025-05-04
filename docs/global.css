@@ -22,9 +22,19 @@
   padding: 0;
   box-sizing: border-box;
 
-  /* set font */
-  font-family: "Inter", Helvetica, sans-serif;
   color: var(--fg11);
+}
+
+/* set font */
+body,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Inter", Helvetica, sans-serif;
 }
 
 body {

@@ -45,8 +45,20 @@ section img {
   width: 100%;
 }
 
+figcaption {
+  font-size: 0.9rem;
+  color: var(--fg10);
+  font-style: italic;
+}
+
 aside {
   margin: 1rem 0;
+}
+
+.center {
+  width: 100%;
+  display: grid;
+  place-items: center;
 }
 
 /* lists */

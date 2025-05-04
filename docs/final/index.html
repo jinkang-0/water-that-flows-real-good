@@ -19,6 +19,13 @@
       rel="stylesheet"
     />
 
+    <!-- load scripts -->
+    <script
+      id="MathJax-script"
+      async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+    ></script>
+
     <!-- load website styles -->
     <link rel="stylesheet" href="../global.css" />
     <link rel="stylesheet" href="../article.css" />
@@ -30,114 +37,205 @@
         <header>
           <h1>Interactive Fluid Simulation</h1>
           <h3>Final Report</h3>
-          <p class="gray">
-            Team: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
-          </p>
           <p>
-            Webpage:
-            <a
-              href="https://jinkang-0.github.io/water-that-flows-real-good/final/"
-              >jinkang-0.github.io/water-that-flows-real-good/final/</a
-            >
+            Team 18: Ann Basil, Ben Bliss, David Hernandez, Jinkang Fang
           </p>
+          <ul>
+            <li>
+              Final report website:
+              <a
+                href="https://jinkang-0.github.io/water-that-flows-real-good/final/"
+                >https://jinkang-0.github.io/water-that-flows-real-good/final/</a
+              >
+            </li>
+            <li>
+              Final video:
+              <a href="https://drive.google.com/file/d/1c0vDgIneAenOCVRtfyNXWK6s46oZsXUE/view">
+                https://drive.google.com/file/d/1c0vDgIneAenOCVRtfyNXWK6s46oZsXUE/view
+              </a>
+            </li>
+          </ul>
         </header>
         <section>
           <h2>Abstract</h2>
           <p>
-            This project explores an application of fluid simulations in an
-            interactive setting. We chose to create a demo inspired by a game
-            called Where's My Water, where the goal is to guide pockets of water
-            by carving a path in the terrain and having gravity lead our water
-            particles to the target destination.
+            For our final project, we made a game in Unity that features
+            real-time interactions with fluid simulations and high-definition
+            terrain. We implemented the PIC/FLIP method for simulating fluid
+            dynamics and employed signed distance fields to implement terrain
+            collisions using signed distance gradients. We also created
+            different levels to showcase fluid dynamics under different layouts.
           </p>
         </section>
         <section>
           <h2>Technical Approach</h2>
           <h3>Fluid Simultion</h3>
           <p>
-            For fluid simulation, we used a method called PIC/FLIP, which is a
-            hybrid of both particle-based (Lagrangian) and grid-based (Eulerian)
-            approaches. The PIC/FLIP method uses particle positions and
-            velocities to approximate the fluid volume, but uses a grid to solve
-            for fluid incompressibility, transfering velocities in between
-            mediums in each step. As a result, we obtain both the smooth
-            fluid-like motion from the Eulerian approach and the benefits of
-            finer details from particle positions.
+            For fluid simulation, we used a method called PIC/FLIP, which uses
+            particle positions and velocities to approximate the fluid volume,
+            but uses a grid to solve for fluid incompressibility. As a result,
+            we obtain both the smooth fluid-like motion from the grid approach
+            and the benefits of finer details from particle positions.
           </p>
           <p>
-            We implemented the PIC/FLIP method described by Matthias Müller from
-            Ten Minute Physics. In the walkthrough, a choice was raised when
-            transferring velocities from the grid to the particles. A simple
-            bilinear interpolation will get us a PIC value, which is smoother
-            but loses detail. Alternatively, we can compute a bilinear
-            interpolation on the change in velocity, which maintains more
-            information about the individual particle movements but could have
-            too much detail. For our purposes, we preferred a smoother fluid
-            motion, which we felt was a better fit for our cartoonish art style,
-            so we only implemented PIC velocity transfer.
+            We use a “marker-in-cell” (MAC) grid, which offsets the grid and
+            stores the cell velocities at the center of its edges rather than at
+            the center of each cell. This allows cells to share velocities and
+            more effectively solve for incompressibility. Between each transfer,
+            we perform bilinear interpolation to weight the contribution of each
+            particle's velocity by its distance to the center of the edges and
+            vice versa so we can accurately gauge the contributions of velocity.
+          </p>
+          <figure>
+            <img src="../assets/final/velocity_transfer.png" />
+            <figcaption>
+              Ten Minute Physics. Transferring velocity from particle to cell.
+            </figcaption>
+          </figure>
+          <p>
+            A choice was raised when transferring velocities from the grid to
+            the particles. A simple bilinear interpolation will get us a PIC
+            value, which is smoother but loses detail. Alternatively, we can
+            compute a bilinear interpolation on the <em>change in velocity</em>,
+            which maintains more information about the individual particle
+            movements but could have too much detail. For our purposes, we
+            preferred a smoother fluid motion, which we felt was a better fit
+            for our cartoonish art style, so we only implemented PIC velocity
+            transfer.
           </p>
           <p>
-            Aside from the algorithms mentioned above, the PIC/FLIP method as
-            introduced by Matthias Müller also involves a drift solver, which
-            ensures that particles do not collide with each other. This involves
-            both accounting for drift in the incompressibility solver to
-            generate more outward force in dense areas, as well as a self
-            collision check.
+            Aside from the algorithms mentioned above, this method also involves
+            a drift solver, which ensures that particles do not overlap with
+            each other. This involves both accounting for drift in the
+            incompressibility solver to generate more outward force in dense
+            areas, as well as a particle-to-particle collision check.
           </p>
           <p>
-            A naive approach for self collision would involve a double for-loop
-            across all particles, twice. This would be far too slow for large
-            quantities of particles. To speed things up, we implemented a
-            spatial hashing algorithm also described by Matthias Müller. The
-            basic idea for this approach is to store a linked list of particles
-            contained within each cell, which would allow us to iterate over
-            only the particles contained in neighboring cells.
+            A naive approach for particle-to-particle collisions would involve a
+            double for-loop across all particles, twice. This would be far too
+            slow for large quantities of particles. To speed things up, we
+            implemented a spatial hashing algorithm to perform fast searches for
+            nearby particles. The basic idea for this approach is to store a
+            linked list of particles contained within each cell, which would
+            allow us to iterate over only the particles contained in neighboring
+            cells.
           </p>
+          <figure>
+            <img src="../assets/final/spatial_hash.png" />
+            <figcaption>
+              Ten Minute Physics. Intuitive idea of spatial hashing.
+            </figcaption>
+          </figure>
           <p>
             Under the hood, we keep track of three dense arrays to avoid the
-            memory overhead of linked lists, which you can find the
-            implementation details of in the spatial hashing presentation by
-            Matthias Müller. With this partitioning, if we engineer the cell
-            size in this grid to be at least as large as the diameter of each
-            particle, we can ensure that we only have to check the particles
-            contained in neighboring 3x3 cells for particle collisions. With
-            this, we can reduce the runtime from O(n^2) down to a swift O(n).
+            memory overhead of linked lists. For each cell, we count the number
+            of particles in each cell to determine the number of particle
+            indices each cell would need. Then, we keep a start index lookup
+            that tells us the index to start iterating from for any given
+            partition cell. We can similarly find the end index by getting the
+            start index of the next cell. You can find more implementation
+            details in the spatial hashing presentation by Matthias Müller.
+          </p>
+          <figure>
+            <img src="../assets/final/dense_grid.png" />
+            <figcaption>
+              Ten Minute Physics. Dense array representation of spatial hashing.
+            </figcaption>
+          </figure>
+          <p>
+            With this partitioning, if we engineer the cell size in this grid to
+            be at least as large as the diameter of each particle, we can ensure
+            that we only have to check the particles contained in the
+            neighboring 3x3 cells for particle collisions. With this, we can
+            reduce the runtime from \(O(n^2)\) down to a swift \(O(n)\).
           </p>
         </section>
         <section>
-          <h3>Game Details</h3>
+          <h3>Terrain Collisions</h3>
           <p>
-            To achieve high definition fluid-terrain collisions, we implemented
-            signed distance fields for each level. A signed distance field
-            stores the distance to the nearest obstacle (or terrain) for each
-            pixel, its value being negative if it is within an object. This
-            distance field will be precomputed as a texture for each level,
-            which can be easily loaded and modified by the user during runtime.
-            After each particle integration step, we check the value of the
-            distance field at its position. If that value is negative, then we
-            take a step back by that distance so the particle ends up on the
-            surface of the terrain. [need further clarifications from Ben]
+            To implement terrain collisions, we used signed distance fields
+            (SDFs), as they allowed us to easily determine when and how each
+            particle is colliding with the terrain by just sampling a texture.
+            Textures have the added benefit of being easy to sample and edit in
+            runtime.
           </p>
           <p>
-            We wanted multiple levels to showcase different interactions with
-            fluid dynamics. We also wanted this level loading process to be
-            simple to tinker around by anyone with access to a digital art
-            program like Gimp. We decided the best way to approach this is to
-            take in a layer for each cell type (e.g. terrain, water, stone,
-            drain). We would then initialize the simulation by sampling the
-            texture and setting the appropriate cell type based on the alpha of
-            the layer. With this approach, we can use texture sampling in the
-            display to render custom terrain art that maps even to the destroyed
-            terrain.
+            A distance field is a scalar field of the distance to the nearest
+            point on some object. Given a set of points in the 2D plane that
+            define an object as a subset \(S\subseteq \mathbb{R}^2\), the distance outside this object (\((x,y)\not\in S\)) can be written as:
+            <div class="center">
+              \(d_{\text{out}}(x,y)=\inf\left\{\sqrt{(x-x')^2+(y-y')^2}\ |\ (x',y')\in S\right\}\)
+            </div>
           </p>
           <p>
-            For our game, we wanted to know how much fluid entered the target
-            area. We also want any fluid that enters the area to “disappear”
-            completely, so it won't interfere with any subsequent fluid flow.
-            This ended up simpler than imagined. We simply added a “drain cell”
-            that would disable any fluid particles that entered the cell and
-            increment a global counter for each particle. Once it reaches a
-            certain threshold, we would declare the level beaten.
+            The distance inside the object (\((x,y)\in S\)) can be written as:
+            <div class="center">
+              \(d_{\text{in}}(x,y)=\inf\left\{\sqrt{(x-x')^2+(y-y')^2}\ |\ (x',y')\not\in S\right\}\)
+            </div>
+          </p>
+          <p>
+            Outside the object this is the distance to the closest point inside the object. 
+            Inside the object, this is the distance to the closest point outside the object. 
+            These functions can be combined into a final signed distance \(d\), the function that 
+            maps points inside the object to \(-d_{\text{in}}(x,y)\) and points outside the object
+            to \(d_{\text{out}}(x,y)\).
+          </p>
+          <p>
+            In order to handle collisions, we first sample the distance for each particle. 
+            The distance is less than the particle radius if and only if the particle is 
+            intersecting with the terrain boundary. 
+            If a given particle is intersecting, calculate the gradient of the distance 
+            field and move the particle based on its distance to the outside (plus its radius). 
+            This is an approximation that worked pretty well.
+          </p>
+          <p>
+            In addition to moving the particle, we removed the velocity component 
+            that faced into the terrain (for it to behave like a damp collision). 
+            This was done by projecting the velocity onto the gradient and subtracting 
+            the result from the velocity (only if the velocity faced into the terrain).
+          </p>
+          <figure>
+            <img src="../assets/final/terrain_collision.png">
+            <figcaption>Updating particle velocity during terrain collision.</figcaption>
+          </figure>
+          <p>
+            Using SDFs also made editable terrain easy. 
+            We were able to implement this by using a GPU shader that takes 
+            in the previous terrain SDF and mouse input information. 
+            We can then take an implicitly defined distance field (to the mouse position, 
+            or a line from the previous to current position) 
+            and write the minimum of the implicit distance and previous distance to the texture.
+          </p>
+        </section>
+        <section>
+          <h3>Level Creation</h3>
+          <p>
+            One goal of the project is to make this into a game with multiple levels
+            to demonstrate the effect of fluid dynamics under different terrain layouts.
+            Ideally, levels should be easy to edit by anyone with access to a digital art 
+            program like Gimp. We decided to go into the art direction, using one layer for
+            each cell type (e.g. terrain, water, stone, drain). 
+          </p>
+          <figure>
+            <img src="../assets/final/layer_add.png">
+            <figcaption>Layers that make up a level.</figcaption>
+          </figure>
+          <p>
+            We would then initialize
+            the elements of the simulation by sampling its respective textures. 
+            With this approach, we can also apply texture sampling based on the distance 
+            fields to map indestructible terrain and yet-to-be destroyed terrain onto 
+            custom terrain art textures.
+          </p>
+          <figure>
+            <img src="../assets/final/cell_types.png">
+            <figcaption>Grid visualization of different cell types</figcaption>
+          </figure>
+          <p>
+            We use a special “drain cell” that would disable any fluid particles 
+            that entered the cell and increment a global counter. 
+            This approach allowed us to easily map goal areas for each 
+            level and specify a specific amount of particles needed to enter for the level to be beaten.
           </p>
         </section>
         <section>
@@ -178,12 +276,25 @@
             Investigate further before settling down on a band-aid solution.
             Tech debt will always come back to bite you.
           </p>
+          <p>
+            Unity is a pain to work with regarding simulations.
+          </p>
         </section>
         <section>
           <h2>Results</h2>
           <figure>
-            <img src="../assets/fluid_sim.gif" />
+            <img src="../assets/final/fluid_sim.gif" />
             <figcaption>The PIC/FLIP fluid simulation in a box.</figcaption>
+          </figure>
+          <br/>
+          <figure>
+            <img src="../assets/final/level1.gif">
+            <figcaption>Sample level with terrain collisions.</figcaption>
+          </figure>
+          <br/>
+          <figure>
+            <img src="../assets/final/texture_sampled_terrain.gif">
+            <figcaption>Custom terrain from texture sampling.</figcaption>
           </figure>
         </section>
         <section>
@@ -229,18 +340,46 @@
         <section>
           <h2>Contributions</h2>
           <p>
-            <strong>Ann Basil:</strong> Level design, art assets, menu UI, level
-            selection.
+            <strong>Ann Basil:</strong> I worked primarily on the scoring system, 
+            particle counting/disabling, level designs, level select, and UI of Mippy and Co's Water Rescue. 
+            I collaborated with David on particle counting, disabling, 
+            and scoring to create a 'win' condition for the game. 
+            I worked with Ben and David on texturing the scene, 
+            through scene loading and dynamic drain cell setting. 
+            I was additionally responsible for the visual appearance and cohesion of the game, 
+            such as the UI, level selection, level design, and our little guy, Mippy.
           </p>
           <p>
-            <strong>Ben Bliss:</strong> Distance field generation,
-            particle-terrain collisions, terrain destruction.
+            <strong>Ben Bliss:</strong> I worked on the terrain collision and destruction. 
+            This included signed distance field generation, import, usage and runtime modification. 
+            I wrote a circle based distance field modification which Jinkang extended to lines (2D pill area). 
+            I wrote the terrain rendering which uses the distance field and terrain texture. 
+            I implemented the multi-layered terrain editing, where some terrain could not be destroyed. 
+            I also extended the particle rendering to sample the background for the simple 
+            stylized refraction effect.
           </p>
           <p>
-            <strong>David Hernandez:</strong> Level loading and scoring system.
+            <strong>David Hernandez:</strong> I created a level loader which would take 
+            in a texture that would display where the water would be in a standard level, 
+            and map the grid cells to reflect that. 
+            We did this for terrain initialization, water initialization and 
+            drain initialization so that new levels were simple to implement 
+            and can be added on to each level just by taking in images. 
+            I also worked on particle counting and the scoring system. 
+            Essentially I defined cells of type drain, and when a particle 
+            interacted with one of these cells, the score would be incremented, 
+            and the particle would be removed. 
           </p>
           <p>
-            <strong>Jinkang Fang:</strong> Fluid simulation and spatial hashing.
+            <strong>Jinkang Fang:</strong> I set up the project in Unity, 
+            borrowing a simple particle renderer code and some boilerplate 
+            code to get us started with using compute shaders. 
+            I also worked on the FLIP fluid simulation, 
+            with some code snippets taken from Ben's initial work on the Eulerian fluid simulation. 
+            Afterwards, I modified the particle renderer so the water particles 
+            blend together to create a smoother water volume, and extended the terrain destruction
+            code to destroy terrain within a pill shaped area between current and previous mouse positions,
+            which created a smoother experience, especially under low framerates.
           </p>
         </section>
       </article>
