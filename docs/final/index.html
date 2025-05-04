@@ -223,19 +223,14 @@
             to demonstrate the effect of fluid dynamics under different terrain layouts.
             Ideally, levels should be easy to edit by anyone with access to a digital art 
             program like Gimp. We decided to go into the art direction, using one layer for
-            each cell type (e.g. terrain, water, stone, drain). 
+            each cell type (e.g. terrain, water, stone, drain). We would then initialize
+            the elements of the simulation by sampling its respective textures.
           </p>
           <figure>
             <img src="../assets/final/layer_add.png">
             <figcaption>Layers that make up a level.</figcaption>
           </figure>
-          <p>
-            We would then initialize
-            the elements of the simulation by sampling its respective textures. 
-            With this approach, we can also apply texture sampling based on the distance 
-            fields to map indestructible terrain and yet-to-be destroyed terrain onto 
-            custom terrain art textures.
-          </p>
+          <br/>
           <figure>
             <img src="../assets/final/cell_types.png">
             <figcaption>Grid visualization of different cell types. Circles represent fluid particles.</figcaption>
@@ -245,6 +240,11 @@
             that entered the cell and increment a global counter. 
             This approach allowed us to easily map goal areas for each 
             level and specify a specific amount of particles needed to enter for the level to be beaten.
+          </p>
+          <p>
+            Due to the short deadline, we didn't have time to automate the SDF generation process.
+            Instead, we manually created inside and outside distance fields for each level, per terrain layer, using Gimp.
+            We then combined those textures internally in Unity to create the final SDF texture for the simulation to work with.
           </p>
         </section>
         <section>
