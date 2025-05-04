@@ -154,11 +154,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   timeScale: 1
-  fixedTimeStep: 0
+  fixedTimeStep: 1
   iterationsPerFrame: 1
   maxBounds: {x: 16, y: 9}
   cellResolution: 72
-  numParticles: 5000
+  numParticles: 2300
   particleDensity: 3
   gravity: -9.81
   stiffness: 1
