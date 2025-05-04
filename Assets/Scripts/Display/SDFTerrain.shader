@@ -9,6 +9,8 @@ Shader "Custom/SDFTerrain"
     }
     SubShader
     {
+        Tags { "RenderType"="Transparent" "Queue"="Overlay" }
+        Blend SrcAlpha OneMinusSrcAlpha
         //Blend SrcAlpha OneMinusSrcAlpha
 
         Pass
@@ -58,11 +60,23 @@ Shader "Custom/SDFTerrain"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                if (tex2D(_StaticDist, i.uv).r < 0.0) return tex2D(_StaticColor, i.uv);
-                if (tex2D(_DynamicDist, i.uv).r < 0.0) return tex2D(_DynamicColor, i.uv);
+                fixed4 col = fixed4(0.0, 0.0, 0.0, 0.0);
 
-                discard;
-                return fixed4(0.0, 0.0, 0.0, 0.0);
+                float static_dist = tex2D(_StaticDist, i.uv).r;
+                float dynamic_dist = tex2D(_DynamicDist, i.uv).r;
+                fixed4 static_col = tex2D(_StaticColor, i.uv);
+                fixed4 dynamic_col = tex2D(_DynamicColor, i.uv);
+
+                float r = 2.0;
+
+                float static_alpha = clamp(-static_dist / r + 0.5, 0.0, 1.0);
+                float dynamic_alpha = clamp(-dynamic_dist / r + 0.5, 0.0, 1.0);
+
+                col = fixed4(dynamic_col.xyz, dynamic_alpha);
+                col = static_col * static_alpha + (1.0 - static_alpha) * col;
+
+                //discard;
+                return col;
             }
             ENDCG
         }
