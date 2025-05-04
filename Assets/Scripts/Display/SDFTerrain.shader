@@ -11,7 +11,6 @@ Shader "Custom/SDFTerrain"
     {
         Tags { "RenderType"="Transparent" "Queue"="Overlay" }
         Blend SrcAlpha OneMinusSrcAlpha
-        //Blend SrcAlpha OneMinusSrcAlpha
 
         Pass
         {
@@ -74,8 +73,7 @@ Shader "Custom/SDFTerrain"
 
                 col = fixed4(dynamic_col.xyz, dynamic_alpha);
                 col = static_col * static_alpha + (1.0 - static_alpha) * col;
-
-                //discard;
+                
                 return col;
             }
             ENDCG

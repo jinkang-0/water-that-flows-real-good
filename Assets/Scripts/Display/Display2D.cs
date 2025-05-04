@@ -17,18 +17,12 @@ public class Display2D : MonoBehaviour
     public Shader particleShader;
     public Shader terrainShader;
     public Shader backgroundShader;
-    public Color terrainColor;
-    public Color stoneColor;
     public Color waterColor;
-    public Color drainColor = Color.gray;
 
     // inferred variables
-    private Material gridMaterial;
     private Material particleMaterial;
     private Material terrainMaterial;
     private Material backgroundMaterial;
-    private ComputeBuffer gridArgsBuffer;
-    // private ComputeBuffer particleArgsBuffer;
     private Bounds bounds;
     private bool needsUpdate;
     
@@ -42,11 +36,7 @@ public class Display2D : MonoBehaviour
     public Texture2D backgroundTexture;
 
     // buffers
-    private ComputeBuffer cellTypeBuffer;
-    private ComputeBuffer cellVelocityBuffer;
     private ComputeBuffer particlePositionBuffer;
-    private ComputeBuffer particleActiveBuffer;
-    private ComputeBuffer particleVelocityBuffer;
     private ComputeBuffer lookupStartIndicesBuffer;
     private ComputeBuffer particleLookupBuffer;
 
@@ -59,7 +49,6 @@ public class Display2D : MonoBehaviour
         this.staticTerrainSDF = sim.staticTerrainSDF;
         this.dynamicTerrainSDF = sim.dynamicTerrainSDF;
 
-        gridMaterial = new Material(gridShader);
         particleMaterial = new Material(particleShader);
         particleMaterial.SetTexture("_BGTex", backgroundTexture);
         terrainMaterial = new Material(terrainShader);
@@ -72,22 +61,13 @@ public class Display2D : MonoBehaviour
         needsUpdate = true;
 
         // initialize buffers
-        var numCells = sim.numCells.x * sim.numCells.y;
-        cellTypeBuffer = ComputeHelper.CreateStructuredBuffer<int>(numCells);
-        cellVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numCells);
-        particleVelocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
         particlePositionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(sim.numParticles);
         particleLookupBuffer = ComputeHelper.CreateStructuredBuffer<int>(sim.numPartitionCells);
         lookupStartIndicesBuffer = ComputeHelper.CreateStructuredBuffer<int>(sim.numPartitionCells + 1);
         
         // bind buffers
-        gridMaterial.SetBuffer("cellTypes", cellTypeBuffer);
-        gridMaterial.SetBuffer("cellVelocities", cellVelocityBuffer);
-        particleMaterial.SetBuffer("particleVelocities", particleVelocityBuffer);
         particleMaterial.SetBuffer("particlePositions", particlePositionBuffer);
 
-        gridArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.cellTypes.Length);
-        // particleArgsBuffer = ComputeHelper.CreateArgsBuffer(mesh, sim.numParticles);
         bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
         simulation = sim;
     }
@@ -100,10 +80,6 @@ public class Display2D : MonoBehaviour
         UpdateSettings();
         
         // update data
-        cellTypeBuffer.SetData(simulation.cellTypes);
-        cellVelocityBuffer.SetData(simulation.cellVelocities);
-        
-        particleVelocityBuffer.SetData(simulation.particleVelocities);
         particlePositionBuffer.SetData(simulation.particlePositions);
         particleLookupBuffer.SetData(simulation.particleLookup);
         lookupStartIndicesBuffer.SetData(simulation.lookupStartIndices);
@@ -116,7 +92,6 @@ public class Display2D : MonoBehaviour
         
         Graphics.DrawMeshInstancedProcedural(mesh, 0, backgroundMaterial, bounds, 1);
         Graphics.DrawMeshInstancedProcedural(mesh, 0, terrainMaterial, bounds, 1);
-        Graphics.DrawMeshInstancedIndirect(mesh, 0, gridMaterial, bounds, gridArgsBuffer); 
         Graphics.DrawMeshInstancedProcedural(mesh, 0, particleMaterial, bounds, simulation.numParticles);
     }
 
@@ -125,15 +100,6 @@ public class Display2D : MonoBehaviour
         if (!needsUpdate) return;
 
         needsUpdate = false;
-        gridMaterial.SetFloat("scale", scale);
-        gridMaterial.SetColor("terrainColor", terrainColor);
-        gridMaterial.SetColor("stoneColor", stoneColor);
-        gridMaterial.SetColor("waterColor", waterColor);
-        gridMaterial.SetColor("drainColor", drainColor);
-        gridMaterial.SetInt("numCols", simulation.numCells.x);
-        gridMaterial.SetInt("numRows", simulation.numCells.y);
-        gridMaterial.SetVector("boundsSize", simulation.boundsSize);
-        gridMaterial.SetFloat("cellSize", simulation.cellSize);
         
         particleMaterial.SetColor("waterColor", waterColor);
         particleMaterial.SetFloat("scale", scale);
@@ -162,9 +128,7 @@ public class Display2D : MonoBehaviour
 
     private void OnDestroy()
     {
-        ComputeHelper.Release(gridArgsBuffer);
-        // ComputeHelper.Release(particleArgsBuffer);
-        ComputeHelper.Release(cellTypeBuffer, cellVelocityBuffer, particlePositionBuffer, particleVelocityBuffer);
+        ComputeHelper.Release(particlePositionBuffer);
         ComputeHelper.Release(particleLookupBuffer, lookupStartIndicesBuffer);
     }
 }
