@@ -213,7 +213,7 @@ MonoBehaviour:
   drainColor: {r: 0.7764706, g: 0.7490196, b: 0.5058824, a: 0}
   staticTerrainTexture: {fileID: 2800000, guid: 6795e1af2b7fc47628b48a48b94eb4d4, type: 3}
   dynamicTerrainTexture: {fileID: 2800000, guid: d030335f4908a41d79dbc668b8f510e2, type: 3}
-  backgroundTexture: {fileID: 2800000, guid: b58f1605da96b4b40b41e4f6d66886ff, type: 3}
+  backgroundTexture: {fileID: 2800000, guid: e1096e8308b98406a8190ddbc29bdb37, type: 3}
   scoreText: {fileID: 0}
 --- !u!114 &479015541
 MonoBehaviour:
@@ -355,6 +355,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   popupObject: {fileID: 1558340533}
   sim: {fileID: 479015538}
+  levelnum: 1
 --- !u!1 &1015131677
 GameObject:
   m_ObjectHideFlags: 0
