@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using Unity.Mathematics;
 using UnityEngine.Experimental.Rendering;
+using UnityEngine.SceneManagement;
 
 public class Simulation : MonoBehaviour
 {
@@ -126,8 +127,6 @@ public class Simulation : MonoBehaviour
         
         // initialize compute helpers
         cpuCompute = new CPUCompute(this);
-
-        isPaused = true;
     }
 
     private void FixedUpdate()
@@ -194,33 +193,7 @@ public class Simulation : MonoBehaviour
         restDensity = cpuCompute.ComputeDensities(cellTypes, particlePositions, densityBuffer, disabledParticles, restDensity);
         cpuCompute.SolveIncompressibility(cellVelocities, cellTypes, densityBuffer, restDensity);
         cpuCompute.VelocityTransferGrid(cellTypes, cellVelocities, particlePositions, particleVelocities, disabledParticles);
-
-        // handle mouse interactions
-        // ComputeHelper.Dispatch(compute, totalCells, kernelIndex: userInputKernel);
     }
-
-    // update compute shader settings
-    // private void UpdateSettings(float deltaTime)
-    // {
-    //     // mouse interactions
-    //     if (Camera.main == null) return;
-    //
-    //     Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-    //     int interactionType = 0;
-    //     bool isPush = Input.GetMouseButton(0);
-    //     bool isDelete = Input.GetMouseButton(1);
-    //     if (isPush)
-    //     {
-    //         interactionType = 1;
-    //     } 
-    //     else if (isDelete)
-    //     {
-    //         interactionType = 2;
-    //     }
-    //
-    //     compute.SetVector("interactionInputPoint", mousePos);
-    //     compute.SetInt("interactionInputType", interactionType);
-    // }
 
     // reset buffer data to spawner data
     private void SetInitialSceneData()
@@ -304,8 +277,14 @@ public class Simulation : MonoBehaviour
         // R: reset
         if (Input.GetKeyDown(KeyCode.R))
         {
-            isPaused = true;
+            // isPaused = true;
             SetInitialSceneData();
+        }
+        
+        // ESC: Exit to main menu
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            SceneManager.LoadSceneAsync(0);
         }
 
         TerrainEdit();
