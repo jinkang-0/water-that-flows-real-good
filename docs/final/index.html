@@ -63,7 +63,7 @@
             real-time interactions with fluid simulations and high-definition
             terrain. We implemented the PIC/FLIP method for simulating fluid
             dynamics and employed signed distance fields to implement terrain
-            collisions using signed distance gradients. We also created
+            collisions by computing distance gradients for each particle. We also created
             different levels to showcase fluid dynamics under different layouts.
           </p>
         </section>
@@ -174,7 +174,7 @@
             </div>
           </p>
           <p>
-            Outside the object this is the distance to the closest point inside the object. 
+            Outside the object, this is the distance to the closest point inside the object. 
             Inside the object, this is the distance to the closest point outside the object. 
             These functions can be combined into a final signed distance \(d\), the function that 
             maps points inside the object to \(-d_{\text{in}}(x,y)\) and points outside the object
