@@ -211,8 +211,8 @@ MonoBehaviour:
   stoneColor: {r: 0.3660378, g: 0.3660378, b: 0.3660378, a: 1}
   waterColor: {r: 0.43362755, g: 0.46104047, b: 0.7584905, a: 1}
   drainColor: {r: 0.7764706, g: 0.7490196, b: 0.5058824, a: 0}
-  staticTerrainTexture: {fileID: 2800000, guid: 845d644f8794142fda4a1b618912a7c0, type: 3}
-  dynamicTerrainTexture: {fileID: 2800000, guid: 2928748c168ce43f788468829c7e5fa2, type: 3}
+  staticTerrainTexture: {fileID: 2800000, guid: 61b0fe4620e574e8e8db8b26534903d2, type: 3}
+  dynamicTerrainTexture: {fileID: 2800000, guid: ec817bf5a51294ace8fec2fb1929ee96, type: 3}
   backgroundTexture: {fileID: 2800000, guid: 0a8bbc5edfd9e4ae598e55e07ffa87b8, type: 3}
   scoreText: {fileID: 0}
 --- !u!114 &479015541
